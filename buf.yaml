@@ -1,0 +1,7 @@
+# buf configuration: the mihon-source admin protos this plugin calls (vendored, see
+# third_party/mihon-source/PIN). Lint and breaking checks run in mihon-source.
+version: v2
+modules:
+  - path: third_party/mihon-source/proto
+deps:
+  - buf.build/googleapis/googleapis

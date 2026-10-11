@@ -1,0 +1,172 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package panelarr.mihon.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "panelarr/mihon/v1/extensions.proto";
+
+option java_multiple_files = true;
+option java_package = "panelarr.mihon.v1";
+
+// MihonStoresService manages extension stores: indexes of extensions published by a
+// third party. No store is configured by default. Needs the `admin` scope.
+//
+// A store is pinned to the signing key fingerprint it announces when it's added.
+// Every install from the store must be signed with that key, and a refresh that sees
+// a different key fails instead of changing the pin.
+service MihonStoresService {
+  rpc ListStores(ListStoresRequest) returns (ListStoresResponse) {
+    option (google.api.http) = {get: "/v1/admin/stores"};
+  }
+
+  // AddStore fetches the store's descriptor and index and pins its signing key.
+  rpc AddStore(AddStoreRequest) returns (AddStoreResponse) {
+    option (google.api.http) = {
+      post: "/v1/admin/stores"
+      body: "*"
+    };
+  }
+
+  rpc RemoveStore(RemoveStoreRequest) returns (RemoveStoreResponse) {
+    option (google.api.http) = {delete: "/v1/admin/stores/{store_id}"};
+  }
+
+  // RefreshStore downloads the store's index again.
+  rpc RefreshStore(RefreshStoreRequest) returns (RefreshStoreResponse) {
+    option (google.api.http) = {
+      post: "/v1/admin/stores/{store_id}/refresh"
+      body: "*"
+    };
+  }
+
+  // ListAvailable lists the extensions offered by the stores, with their install and
+  // update state.
+  rpc ListAvailable(ListAvailableRequest) returns (ListAvailableResponse) {
+    option (google.api.http) = {get: "/v1/admin/stores/available"};
+  }
+
+  // InstallFromStore installs or updates an extension from a store. The jar is used
+  // when the store offers one, else the APK. The signing key (and the SHA-256, when
+  // the store publishes one) are verified.
+  rpc InstallFromStore(InstallFromStoreRequest) returns (InstallFromStoreResponse) {
+    option (google.api.http) = {
+      post: "/v1/admin/stores/{store_id}/extensions/{pkg_name}/install"
+      body: "*"
+    };
+  }
+}
+
+message Store {
+  // Identifier derived from the store URL.
+  string id = 1;
+  // URL the store was added with.
+  string url = 2;
+  string name = 3;
+  // Short label the store wants shown next to its extensions.
+  string badge_label = 4;
+  // Contact or website the store announces.
+  string contact = 5;
+  // Pinned SHA-256 (hex, lowercase) of the store's signing certificate. Empty for a
+  // legacy index, which announces no key.
+  string signing_key_fingerprint = 6;
+  StoreFormat format = 7;
+  google.protobuf.Timestamp added_at = 8;
+  google.protobuf.Timestamp refreshed_at = 9;
+  // Error of the last refresh. Empty when it worked.
+  string last_error = 10;
+  uint32 extension_count = 11;
+}
+
+enum StoreFormat {
+  STORE_FORMAT_UNSPECIFIED = 0;
+  // repo.json with a protobuf or JSON index.
+  STORE_FORMAT_EXTENSION_STORE = 1;
+  // Legacy index.min.json.
+  STORE_FORMAT_LEGACY_INDEX = 2;
+}
+
+message AvailableExtension {
+  string store_id = 1;
+  string pkg_name = 2;
+  string name = 3;
+  string version_name = 4;
+  int64 version_code = 5;
+  string lib_version = 6;
+  ContentWarning content_warning = 7;
+  string icon_url = 8;
+  repeated AvailableSource sources = 9;
+  // Whether this service can load the extension's lib version.
+  bool supported = 10;
+  // Whether the store offers a jar (no APK conversion needed).
+  bool has_jar = 11;
+  bool installed = 12;
+  string installed_version_name = 13;
+  int64 installed_version_code = 14;
+  // Installed from this store and the store has a newer version.
+  bool update_available = 15;
+}
+
+message AvailableSource {
+  string id = 1;
+  string name = 2;
+  string lang = 3;
+  string home_url = 4;
+}
+
+message ListStoresRequest {}
+
+message ListStoresResponse {
+  repeated Store stores = 1;
+}
+
+message AddStoreRequest {
+  // URL of the store's repo.json, or of a legacy index.min.json.
+  string url = 1;
+  // When set, the store's announced signing key fingerprint must match.
+  string expected_signing_key_fingerprint = 2;
+}
+
+message AddStoreResponse {
+  Store store = 1;
+}
+
+message RemoveStoreRequest {
+  string store_id = 1;
+}
+
+message RemoveStoreResponse {}
+
+message RefreshStoreRequest {
+  string store_id = 1;
+}
+
+message RefreshStoreResponse {
+  Store store = 1;
+}
+
+message ListAvailableRequest {
+  // Only this store. Empty means all stores.
+  string store_id = 1;
+  // Only extensions with a source in this language.
+  string lang = 2;
+  // Case-insensitive match on the extension or source name.
+  string query = 3;
+  // Only installed extensions that have an update.
+  bool updates_only = 4;
+}
+
+message ListAvailableResponse {
+  repeated AvailableExtension extensions = 1;
+}
+
+message InstallFromStoreRequest {
+  string store_id = 1;
+  string pkg_name = 2;
+}
+
+message InstallFromStoreResponse {
+  Extension extension = 1;
+}

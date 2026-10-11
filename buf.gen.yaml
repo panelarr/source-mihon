@@ -1,0 +1,18 @@
+# `make gen` writes Go messages and Connect clients for the mihon-source admin API into gen/.
+version: v2
+managed:
+  enabled: true
+  disable:
+    - module: buf.build/googleapis/googleapis
+  override:
+    - file_option: go_package_prefix
+      value: github.com/panelarr/source-mihon/gen
+plugins:
+  - local: bin/protoc-gen-go
+    out: gen
+    opt: paths=source_relative
+  - local: bin/protoc-gen-connect-go
+    out: gen
+    opt: paths=source_relative
+inputs:
+  - directory: third_party/mihon-source/proto
