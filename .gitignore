@@ -1,0 +1,16 @@
+# Tools and build output
+/bin/
+/dist/
+coverage.out
+*.test
+
+# Local config
+.env
+
+# Go workspace files are local only
+go.work
+go.work.sum
+
+.DS_Store
+.idea/
+.vscode/

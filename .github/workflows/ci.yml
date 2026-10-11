@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: source-mihon
+
+      # Until source-api publishes tagged versions, go.mod points at a sibling checkout.
+      - uses: actions/checkout@v5
+        with:
+          repository: panelarr/source-api
+          ref: main
+          path: source-api
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: source-mihon/go.mod
+          cache-dependency-path: source-mihon/go.sum
+
+      - name: Cache tools
+        uses: actions/cache@v4
+        with:
+          path: source-mihon/bin
+          key: tools-${{ runner.os }}-${{ hashFiles('source-mihon/Makefile', 'source-mihon/go.mod') }}
+
+      - name: Install tools
+        working-directory: source-mihon
+        run: make setup
+
+      - name: Generated code is up to date
+        working-directory: source-mihon
+        run: make gen-check
+
+      - name: Check (format, vet, lint, proto pin, govulncheck, tests)
+        working-directory: source-mihon
+        run: make check
+
+      - name: Build
+        working-directory: source-mihon
+        run: make build
+
+  e2e:
+    name: End to end with mihon-source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: source-mihon
+      - uses: actions/checkout@v5
+        with:
+          repository: panelarr/source-api
+          ref: main
+          path: source-api
+      - uses: actions/checkout@v5
+        with:
+          repository: panelarr/mihon-source
+          ref: main
+          path: mihon-source
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: source-mihon/go.mod
+          cache-dependency-path: source-mihon/go.sum
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Conformance through source-mihon against a real mihon-source
+        working-directory: source-mihon
+        run: make e2e
