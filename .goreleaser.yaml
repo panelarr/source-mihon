@@ -1,0 +1,70 @@
+# GoReleaser builds the release artifacts when release-please tags a
+# version: binaries, archives, checksums, SBOMs and multi-arch images.
+# The source-api checkout must sit next to this repo (go.mod replaces it until
+# source-api is tagged); the release workflow arranges that.
+version: 2
+project_name: source-mihon
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: source-mihon
+    main: ./cmd/source-mihon
+    binary: source-mihon
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/panelarr/source-mihon/internal/buildinfo.Version={{ .Version }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - docs/*
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+sboms:
+  - artifacts: archive
+
+dockers_v2:
+  - id: image
+    ids: [source-mihon]
+    dockerfile: Dockerfile.release
+    images:
+      - panelarr/source-mihon
+    tags:
+      - "{{ .Version }}"
+      - "{{ .Major }}.{{ .Minor }}"
+      - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: source-mihon
+      org.opencontainers.image.description: Mihon extensions as a Panelarr source plugin, through mihon-source
+      org.opencontainers.image.source: https://github.com/panelarr/source-mihon
+      org.opencontainers.image.licenses: GPL-3.0-or-later
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+
+# release-please writes the changelog and creates the GitHub release;
+# GoReleaser adds the artifacts to it.
+changelog:
+  disable: true
+
+release:
+  mode: append

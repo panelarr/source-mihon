@@ -1,0 +1,11 @@
+# Image built by GoReleaser from the release binaries (see .goreleaser.yaml).
+# For local builds use the Dockerfile (`make docker`).
+FROM gcr.io/distroless/static-debian12:nonroot
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/source-mihon /source-mihon
+ENV PLUGIN_LISTEN=:8904
+EXPOSE 8904
+USER 65532:65532
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["/source-mihon", "healthcheck"]
+ENTRYPOINT ["/source-mihon"]

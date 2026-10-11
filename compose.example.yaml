@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# mihon-source with source-mihon in front of it, for a Panelarr server on the same
+# network. Copy it, adjust it, and start it with
+#   docker compose -f compose.example.yaml up -d
+#
+# Create a client key in mihon-source's admin (Clients) with sources:read, sources:write
+# and admin, and put it in mihon_source_api_key.txt. Give the Panelarr server the plugin
+# address http://source-mihon:8904 and the key in source_mihon_api_key.txt.
+
+services:
+  mihon-source:
+    image: panelarr/mihon-source:latest
+    restart: unless-stopped
+    ports:
+      - "8902:8902"            # mihon-source's admin UI. Put a TLS reverse proxy in front for remote access.
+    environment:
+      MIHON_ADMIN_TOKEN_FILE: /run/secrets/mihon_admin_token
+    secrets:
+      - mihon_admin_token
+    volumes:
+      - mihon-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  source-mihon:
+    image: panelarr/source-mihon:latest
+    restart: unless-stopped
+    # No published port: only containers on this network (the Panelarr server) reach 8904.
+    environment:
+      MIHON_SOURCE_URL: http://mihon-source:8902
+      MIHON_SOURCE_API_KEY_FILE: /run/secrets/mihon_source_api_key
+      PLUGIN_API_KEY_FILE: /run/secrets/source_mihon_api_key
+    secrets:
+      - mihon_source_api_key
+      - source_mihon_api_key
+    depends_on:
+      - mihon-source
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+secrets:
+  mihon_admin_token:
+    file: ./mihon_admin_token.txt       # one line, a long random string
+  mihon_source_api_key:
+    file: ./mihon_source_api_key.txt    # the mihon-source client key (msk_…)
+  source_mihon_api_key:
+    file: ./source_mihon_api_key.txt    # the key the Panelarr server sends to source-mihon
+
+volumes:
+  mihon-data:

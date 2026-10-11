@@ -37,6 +37,12 @@ func main() {
 			os.Exit(runHealthcheck(os.Args[2:], os.Stderr))
 		}
 	}
+	// The plugin's own key may come from a file too (Docker secrets).
+	if os.Getenv("PLUGIN_API_KEY") == "" {
+		if k := env("PLUGIN_API_KEY"); k != "" {
+			_ = os.Setenv("PLUGIN_API_KEY", k)
+		}
+	}
 	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel()}))
 	p, err := mihon.New(context.Background(), mihon.Options{Log: log, Managed: plugin.IsManaged(), Initial: fromEnv()})
 	if err != nil {

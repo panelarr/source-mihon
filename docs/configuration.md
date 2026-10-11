@@ -16,7 +16,7 @@ A key mihon-source rejects makes `SetConfig` fail at once. mihon-source being do
 | Flag | Environment | Meaning |
 |---|---|---|
 | `--listen` | `PLUGIN_LISTEN` | Serve standalone on this address (default `:8904` when run by hand) |
-| `--api-key` | `PLUGIN_API_KEY` | The key callers (the Panelarr server) must send. Health and `/healthz` need none |
+| `--api-key` | `PLUGIN_API_KEY` | The key callers (the Panelarr server) must send (or `PLUGIN_API_KEY_FILE`). Health and `/healthz` need none |
 | `--config` | `PLUGIN_CONFIG` | A JSON file with the configuration above |
 | | `MIHON_SOURCE_URL` | `mihon_source_url`, without a config file |
 | | `MIHON_SOURCE_API_KEY` | `api_key`, without a config file. `MIHON_SOURCE_API_KEY_FILE` reads it from a file (Docker secrets) |
@@ -28,3 +28,7 @@ Started by the Panelarr server (managed mode), it ignores `--listen` and `--conf
 
 - `source-mihon healthcheck [--url …]`: exits 0 when the local `/healthz` answers, for container health checks.
 - `source-mihon version`: prints the version.
+
+## Container
+
+`panelarr/source-mihon` listens on 8904 as a non-root user, with a health check. [compose.example.yaml](../compose.example.yaml) runs it next to mihon-source, with the keys as Docker secrets and 8904 reachable only on the compose network. `make docker` builds the image locally.
