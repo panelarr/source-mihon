@@ -28,3 +28,20 @@ func TestConfigSchemaLabelsEveryField(t *testing.T) {
 		t.Fatalf("store items are titled %v", title)
 	}
 }
+
+// The form shows the fields in the order they're written here, which the SDK
+// stamps as x-order; the schema reaches the host as a Struct, which sorts keys.
+func TestConfigSchemaKeepsTheWrittenOrder(t *testing.T) {
+	doc := schema().Doc()
+	props := doc["properties"].(map[string]any)
+	order := func(m map[string]any, name string) any { return m[name].(map[string]any)["x-order"] }
+	for i, name := range []string{"mihon_source_url", "api_key", "stores", "extensions"} {
+		if got := order(props, name); got != float64(i+1) {
+			t.Errorf("%s: x-order %v, want %d", name, got, i+1)
+		}
+	}
+	store := props["stores"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+	if order(store, "url") != float64(1) || order(store, "signing_key_fingerprint") != float64(2) {
+		t.Errorf("store fields: %v", store)
+	}
+}
