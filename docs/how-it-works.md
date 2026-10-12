@@ -31,6 +31,9 @@ source-mihon declares the source API's `PACKAGES` capability, so the Panelarr se
 - **UpdatePackage** installs the newest supported offer when it's newer; up to date is a no-op. mihon-source refreshes store indexes on its schedule (or its store-refresh job).
 - **UninstallPackage** removes the extension; one that isn't installed is a no-op.
 - **SetPackageSettings** sets the extension's languages in mihon-source.
+- **ListOrigins / RefreshOrigin** are mihon-source's stores: URL, last refresh and its error, extension count and pinned signing key. A refresh that fails answers `STORE_FETCH_FAILED` or `STORE_INVALID`, as installs do.
+- **Package details** of an installed extension come from mihon-source: signing fingerprint, extensions-lib version (`api_version`), install time, file checksum and the store it came from. Its load error is the package's `error`.
+- **ReloadPackage** reloads the extension in mihon-source from its installed file, e.g. after a failed load or to apply a setting the extension reads only when it starts.
 - Store problems come back with the source API's reasons: `STORE_FETCH_FAILED` (UNAVAILABLE) and `STORE_INVALID` (FAILED_PRECONDITION).
 
 The declarative `extensions` setting still installs missing extensions for people who configure by file.

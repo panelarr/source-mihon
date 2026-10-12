@@ -34,3 +34,9 @@ func (p *Plugin) RunJob(context.Context, *sourcev1.RunJobRequest) (*sourcev1.Run
 func (p *Plugin) CancelJobRun(context.Context, *sourcev1.CancelJobRunRequest) (*sourcev1.CancelJobRunResponse, error) {
 	return nil, plugin.ErrUnimplemented("CancelJobRun")
 }
+
+// Nor are per-source health checks.
+
+func (p *Plugin) SetSourceHealthCheck(context.Context, *sourcev1.SetSourceHealthCheckRequest) (*sourcev1.SetSourceHealthCheckResponse, error) {
+	return nil, plugin.ErrUnimplemented("SetSourceHealthCheck")
+}

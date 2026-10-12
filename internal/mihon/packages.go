@@ -131,6 +131,7 @@ func (p *Plugin) toProto(w *packageWorld, v *view) *sourcev1.Package {
 	}
 	if e := v.installed; e != nil {
 		out.Installed, out.InstalledVersion, out.Error = true, e.GetVersionName(), e.GetLoadError()
+		out.Details = details(e)
 		if out.Name == "" {
 			out.Name, out.Version, out.ContentRating = e.GetName(), e.GetVersionName(), rating(e.GetContentWarning())
 		}

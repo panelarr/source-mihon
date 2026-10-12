@@ -190,3 +190,45 @@ func TestPluginLanguagesFilterSources(t *testing.T) {
 		t.Fatalf("package id: %v %v", src, err)
 	}
 }
+
+func TestOriginsDetailsAndReload(t *testing.T) {
+	up := newUpstream(t, plugintest.New())
+	withOffers(up)
+	p := newPlugin(t, up, nil, false)
+	ctx := context.Background()
+	origins, err := p.ListOrigins(ctx, &sourcev1.ListOriginsRequest{})
+	if err != nil || len(origins.GetOrigins()) != 2 {
+		t.Fatalf("origins: %v, %v", origins, err)
+	}
+	if o := origins.GetOrigins()[0]; o.GetId() != "s0" || o.GetName() != "Existing" || o.GetPackageCount() != 3 || o.GetUrl() == "" {
+		t.Fatalf("origin: %v", o)
+	}
+	refreshed, err := p.RefreshOrigin(ctx, &sourcev1.RefreshOriginRequest{OriginId: "s1"})
+	if err != nil || refreshed.GetOrigin().GetRefreshedAt() == nil {
+		t.Fatalf("refresh: %v, %v", refreshed, err)
+	}
+	up.stores.refreshErr = storeError(connect.CodeUnavailable, "STORE_FETCH_FAILED", "GET store failed")
+	_, err = p.RefreshOrigin(ctx, &sourcev1.RefreshOriginRequest{OriginId: "s1"})
+	if plugin.ErrorReason(err) != plugin.ReasonStoreFetchFailed {
+		t.Fatalf("failing refresh: %v", err)
+	}
+	if _, err := p.RefreshOrigin(ctx, &sourcev1.RefreshOriginRequest{OriginId: "nope"}); plugin.ErrorCode(err) != plugin.CodeNotFound {
+		t.Fatalf("unknown origin: %v", err)
+	}
+
+	got, err := p.ReloadPackage(ctx, &sourcev1.ReloadPackageRequest{PackageId: "example.comics"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := got.GetPackage().GetDetails()
+	if d.GetApiVersion() != "1.5" || d.GetSigningFingerprint() != "ab12" || d.GetOriginId() != "s0" || strings.Join(up.admin.reloads, ",") != "example.comics" {
+		t.Fatalf("reload: %v, reloads %v", got, up.admin.reloads)
+	}
+	if _, err := p.ReloadPackage(ctx, &sourcev1.ReloadPackageRequest{PackageId: "multi.comics"}); plugin.ErrorCode(err) != plugin.CodeFailedPrecondition {
+		t.Fatalf("reload a package that isn't installed: %v", err)
+	}
+	list, _ := p.ListPackages(ctx, &sourcev1.ListPackagesRequest{})
+	if pkgs(t, list)["multi.comics"].GetDetails() != nil {
+		t.Fatal("details on a package that isn't installed")
+	}
+}

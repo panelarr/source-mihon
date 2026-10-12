@@ -18,6 +18,7 @@ import (
 	"connectrpc.com/connect"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	sourcev1 "github.com/panelarr/source-api/gen/panelarr/source/v1"
 	"github.com/panelarr/source-api/sdk/client"
@@ -43,6 +44,7 @@ type fakeStores struct {
 	installs   []string
 	addErr     error
 	installErr error
+	refreshErr error
 	admin      *fakeAdmin
 }
 
@@ -62,6 +64,22 @@ func (f *fakeStores) AddStore(_ context.Context, r *connect.Request[mihonv1.AddS
 	f.stores = append(f.stores, st)
 	f.added = append(f.added, r.Msg.GetUrl()+"|"+r.Msg.GetExpectedSigningKeyFingerprint())
 	return connect.NewResponse(&mihonv1.AddStoreResponse{Store: st}), nil
+}
+
+func (f *fakeStores) RefreshStore(_ context.Context, r *connect.Request[mihonv1.RefreshStoreRequest]) (*connect.Response[mihonv1.RefreshStoreResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, st := range f.stores {
+		if st.GetId() == r.Msg.GetStoreId() {
+			if f.refreshErr != nil {
+				st.LastError = f.refreshErr.Error()
+				return nil, f.refreshErr
+			}
+			st.LastError, st.RefreshedAt = "", timestamppb.Now()
+			return connect.NewResponse(&mihonv1.RefreshStoreResponse{Store: st}), nil
+		}
+	}
+	return nil, connect.NewError(connect.CodeNotFound, errors.New("store not found"))
 }
 
 func (f *fakeStores) ListAvailable(context.Context, *connect.Request[mihonv1.ListAvailableRequest]) (*connect.Response[mihonv1.ListAvailableResponse], error) {
@@ -105,6 +123,7 @@ type fakeAdmin struct {
 	mu         sync.Mutex
 	installed  []*mihonv1.Extension
 	uninstalls []string
+	reloads    []string
 	langs      map[string][]string
 }
 
@@ -127,6 +146,18 @@ func (f *fakeAdmin) UninstallExtension(_ context.Context, r *connect.Request[mih
 	f.uninstalls = append(f.uninstalls, r.Msg.GetPkgName())
 	f.installed = slices.DeleteFunc(f.installed, func(e *mihonv1.Extension) bool { return e.GetPkgName() == r.Msg.GetPkgName() })
 	return connect.NewResponse(&mihonv1.UninstallExtensionResponse{}), nil
+}
+
+func (f *fakeAdmin) ReloadExtension(_ context.Context, r *connect.Request[mihonv1.ReloadExtensionRequest]) (*connect.Response[mihonv1.ReloadExtensionResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reloads = append(f.reloads, r.Msg.GetPkgName())
+	for _, e := range f.installed {
+		if e.GetPkgName() == r.Msg.GetPkgName() {
+			return connect.NewResponse(&mihonv1.ReloadExtensionResponse{Extension: e}), nil
+		}
+	}
+	return nil, connect.NewError(connect.CodeNotFound, errors.New("extension not found"))
 }
 
 func (f *fakeAdmin) SetExtensionLanguages(_ context.Context, r *connect.Request[mihonv1.SetExtensionLanguagesRequest]) (*connect.Response[mihonv1.SetExtensionLanguagesResponse], error) {
@@ -162,12 +193,13 @@ func newUpstream(t *testing.T, p plugin.Plugin) *upstream {
 	}
 	// The fake's two sources come from two installed extensions.
 	admin := &fakeAdmin{installed: []*mihonv1.Extension{
-		{PkgName: "example.comics", Name: "Example Comics", VersionName: "1.0", VersionCode: 10,
+		{PkgName: "example.comics", Name: "Example Comics", VersionName: "1.0", VersionCode: 10, LibVersion: "1.5",
+			SigningFingerprint: "ab12", Origin: &mihonv1.ExtensionOrigin{Kind: &mihonv1.ExtensionOrigin_StoreId{StoreId: "s0"}},
 			Sources: []*mihonv1.ExtensionSource{{Id: "1001", Name: "Example Comics", Lang: "en", Available: true}}},
 		{PkgName: "beispiel.comics", Name: "Beispiel Comics", VersionName: "2.0", VersionCode: 20,
 			Sources: []*mihonv1.ExtensionSource{{Id: "2001", Name: "Beispiel Comics", Lang: "de", Available: true}}},
 	}}
-	stores := &fakeStores{stores: []*mihonv1.Store{{Id: "s0", Url: "https://store.example/repo.json", Name: "Existing"}}, admin: admin}
+	stores := &fakeStores{stores: []*mihonv1.Store{{Id: "s0", Url: "https://store.example/repo.json", Name: "Existing", ExtensionCount: 3}}, admin: admin}
 	mux := http.NewServeMux()
 	path, h := mihonv1connect.NewMihonStoresServiceHandler(stores)
 	mux.Handle(path, requireKey(h))
