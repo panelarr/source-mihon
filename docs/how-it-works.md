@@ -20,7 +20,15 @@ mihon-source's errors pass through with their code, reason (`SOURCE_DOWN`, `RATE
 
 ## Stores and extensions
 
-After every configuration change, and every 15 minutes, source-mihon makes sure the configured stores are added to mihon-source (through its store API, which pins each store's signing key) and the configured extensions are installed: from the stores that offer a supported version, preferring a jar, then the newest. It only adds. Stores and extensions added in mihon-source by other means stay, and updates are installed in mihon-source. Problems show in `Health` as degraded, and in the logs, named by what failed: "store <url> couldn't be fetched: …" (mihon-source couldn't download it), "store <url> can't be used: …" (unusable content, or a key that doesn't match), "extension <pkg>: no store offers a supported version". Only when mihon-source itself can't be reached does the message say so.
+After every configuration change, and every 15 minutes, the `plugin.sync` job makes sure the configured stores are added to mihon-source (through its store API, which pins each store's signing key) and the configured extensions are installed: from the stores that offer a supported version, preferring a jar, then the newest. It only adds. Stores and extensions added in mihon-source by other means stay, and updates are installed in mihon-source. Problems show in `Health` as degraded, and in the logs, named by what failed: "store <url> couldn't be fetched: …" (mihon-source couldn't download it), "store <url> can't be used: …" (unusable content, or a key that doesn't match), "extension <pkg>: no store offers a supported version". Only when mihon-source itself can't be reached does the message say so. The same problems are the `plugin.sync` run's notes, and fail the run.
+
+## Jobs
+
+With the `JOBS` capability, the job calls show the plugin's own job, `plugin.sync` (above), and then mihon-source's jobs, passed through as they are: `store-refresh` and `source-health` (params `source_ids`, `langs`, `sample`, `steps`). The plugin's own job IDs start with `plugin.` and its run IDs with `plugin-`; everything else goes to mihon-source, whose run history survives restarts (the plugin's is kept in memory). When mihon-source can't be reached, `ListJobs` lists the plugin's job alone. mihon-source records runs it starts for the plugin as started by the plugin's API client: `on_behalf_of` reaches only the plugin's own runs and the log.
+
+## Health checks
+
+With the `HEALTH_CHECKS` capability, `Source.health` is mihon-source's last check of the source, and `SetSourceHealthCheck` turns its scheduled checks off or on (mihon-source's `SetHealthCheck`). To check a source now, run `source-health` with `source_ids` (and `steps`): the run notes each step's result. The schedule comes from `health_checks` in the configuration: on every `plugin.sync` run, source-mihon sets mihon-source's schedule to the interval and sample asked for, with the plugin's `languages`, unless it already is; `default` hands it back to mihon-source's own settings, and an empty interval leaves it alone.
 
 ## Extensions as packages
 

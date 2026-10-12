@@ -9,6 +9,8 @@ source-mihon declares its configuration as a JSON Schema in `GetInfo` (`config_s
 | `languages` | `[]` | Languages to offer sources in, e.g. `["en", "fr"]`. Empty offers all. `"all"` and `"multi"` are languages too: list them to keep multi-language sources. Each extension can narrow this further (its package settings). Sources outside them aren't listed and answer NOT_FOUND |
 | `stores` | `[]` | Stores to add to mihon-source: `{"url": "…/repo.json", "signing_key_fingerprint": "…"}`. The fingerprint is optional and pins the store's key from the start |
 | `extensions` | `[]` | Package names of extensions to install from those stores when they're missing |
+| `health_checks.interval` | `""` | How often mihon-source checks its sources on its own: a number and `m`, `h` or `d` (e.g. `6h`), `off` for no scheduled checks, or `default` for mihon-source's own `MIHON_HEALTH_CHECK_*` settings. Empty leaves mihon-source as it is. The checks cover `languages` (all when empty) |
+| `health_checks.sample` | `10` | Sources per round, the least recently checked first, so rounds rotate through all of them; `0` checks every source each round |
 
 A key mihon-source rejects makes `SetConfig` fail at once. mihon-source being down doesn't: it may still be starting, and `Health` says so.
 

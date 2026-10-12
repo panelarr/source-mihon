@@ -9,78 +9,82 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/panelarr/source-api/sdk/jobs"
 	"github.com/panelarr/source-api/sdk/plugin"
 
 	mihonv1 "github.com/panelarr/source-mihon/gen/panelarr/mihon/v1"
 )
 
-// storeSync keeps the stores and extensions of the configuration in
-// mihon-source: after every configuration change and then periodically, so
-// a fresh or restored mihon-source catches up. It only adds: stores and
-// extensions added in mihon-source by other means are left alone, and
-// updates are installed there.
+// storeSync keeps the configuration in mihon-source: its stores and
+// extensions, and its health-check schedule. It runs as the plugin's
+// "plugin.sync" job: after every configuration change and then
+// periodically, so a fresh or restored mihon-source catches up. It only
+// adds: stores and extensions added in mihon-source by other means are left
+// alone, and updates are installed there.
 type storeSync struct {
-	p     *Plugin
-	every time.Duration
-	kickc chan struct{}
-	stopc chan struct{}
-	once  sync.Once
-	start sync.Once
-	wg    sync.WaitGroup
+	p       *Plugin
+	pending atomic.Bool
+	closed  atomic.Bool
 
 	mu       sync.Mutex
 	problems []string
 	lastRun  time.Time
 }
 
-func newStoreSync(p *Plugin, every time.Duration) *storeSync {
-	return &storeSync{p: p, every: every, kickc: make(chan struct{}, 1), stopc: make(chan struct{})}
-}
+const syncJobID = ownJobPrefix + "sync"
 
-// kick asks for a reconcile now, starting the loop on first use.
-func (s *storeSync) kick() {
-	s.start.Do(func() {
-		s.wg.Add(1)
-		go s.loop()
-	})
-	select {
-	case s.kickc <- struct{}{}:
-	default:
+func newStoreSync(p *Plugin) *storeSync { return &storeSync{p: p} }
+
+// job is the "plugin.sync" job, every so often.
+func (s *storeSync) job(every time.Duration) jobs.Job {
+	return jobs.Job{
+		ID:   syncJobID,
+		Name: "Keep the configuration in mihon-source",
+		Description: "Adds the configured stores to mihon-source, installs the configured extensions that are missing, " +
+			"and applies the configured health-check schedule. Runs after every configuration change, too.",
+		Group:          "Plugin",
+		Every:          every,
+		ScheduleSource: "source-mihon",
+		Cancellable:    true,
+		Run: func(ctx context.Context, run *jobs.Run) error {
+			s.pending.Store(false)
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+			defer cancel()
+			if problems := s.reconcile(ctx, run); len(problems) > 0 {
+				return errors.New(strings.Join(problems, "; "))
+			}
+			return ctx.Err()
+		},
 	}
 }
 
-func (s *storeSync) stop() {
-	s.once.Do(func() { close(s.stopc) })
-	s.wg.Wait()
-}
-
-func (s *storeSync) loop() {
-	defer s.wg.Done()
-	t := time.NewTicker(s.every)
-	defer t.Stop()
-	for {
-		select {
-		case <-s.stopc:
-			return
-		case <-s.kickc:
-		case <-t.C:
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+// kick asks for a reconcile now. If one is running, another follows it, so
+// the latest configuration is always applied.
+func (s *storeSync) kick() {
+	if s.closed.Load() {
+		return
+	}
+	s.pending.Store(true)
+	_, err := s.p.jobs.Trigger(syncJobID, nil)
+	var pe *plugin.Error
+	if errors.As(err, &pe) && pe.Reason == plugin.ReasonAlreadyRunning {
 		go func() {
-			select {
-			case <-s.stopc:
-				cancel()
-			case <-ctx.Done():
+			_, _ = s.p.jobs.Wait(context.Background(), pe.CurrentRunID)
+			if s.pending.Load() {
+				s.kick()
 			}
 		}()
-		s.reconcile(ctx)
-		cancel()
 	}
 }
+
+func (s *storeSync) stop() { s.closed.Store(true) }
 
 // problem is what went wrong in the last reconcile, for Health; empty when
 // it worked.
@@ -110,28 +114,41 @@ func (p *Plugin) Synced(ctx context.Context, after time.Time) error {
 // StoreProblem is the last reconcile's problem, for tests and Health.
 func (p *Plugin) StoreProblem() string { return p.stores.problem() }
 
-func (s *storeSync) reconcile(ctx context.Context) {
+// reconcile applies the configuration once and returns what went wrong.
+func (s *storeSync) reconcile(ctx context.Context, run *jobs.Run) []string {
 	set := s.p.settings.Load()
 	u := s.p.up.Load()
 	var problems []string
-	if set != nil && u != nil && (len(set.Stores) > 0 || len(set.Extensions) > 0) {
-		problems = s.reconcileWith(ctx, u, set)
+	if set == nil || u == nil {
+		run.Skip("Not configured yet")
+	} else {
+		if len(set.Stores) > 0 || len(set.Extensions) > 0 {
+			problems = s.reconcileWith(ctx, u, set, run)
+		}
+		if pr := s.syncHealthChecks(ctx, u, set); pr != "" {
+			problems = append(problems, pr)
+		}
+		if len(problems) == 0 {
+			run.SetMessage("In step with the configuration")
+		}
 	}
 	for _, pr := range problems {
-		s.p.log.Warn("keeping stores and extensions", "problem", pr)
+		s.p.log.Warn("keeping the configuration in mihon-source", "problem", pr)
+		run.Note(jobs.LevelWarn, pr, "")
 	}
 	s.mu.Lock()
 	s.problems = problems
 	s.lastRun = time.Now()
 	s.mu.Unlock()
 	s.p.metrics.storeSync(len(problems) == 0)
+	return problems
 }
 
 func sameURL(a, b string) bool {
 	return strings.EqualFold(strings.TrimRight(strings.TrimSpace(a), "/"), strings.TrimRight(strings.TrimSpace(b), "/"))
 }
 
-func (s *storeSync) reconcileWith(ctx context.Context, u *upstream, set *Settings) []string {
+func (s *storeSync) reconcileWith(ctx context.Context, u *upstream, set *Settings, run *jobs.Run) []string {
 	var problems []string
 	listed, err := call(ctx, u, func() (*connect.Response[mihonv1.ListStoresResponse], error) {
 		return u.stores.ListStores(ctx, connect.NewRequest(&mihonv1.ListStoresRequest{}))
@@ -152,6 +169,8 @@ func (s *storeSync) reconcileWith(ctx context.Context, u *upstream, set *Setting
 			continue
 		}
 		s.p.log.Info("store added to mihon-source", "store", added.Msg.GetStore().GetName(), "id", added.Msg.GetStore().GetId())
+		run.Add("stores_added", 1)
+		run.Note(jobs.LevelInfo, "Added store "+added.Msg.GetStore().GetName(), added.Msg.GetStore().GetId())
 		have = append(have, added.Msg.GetStore())
 	}
 	if len(set.Extensions) == 0 {
@@ -181,6 +200,8 @@ func (s *storeSync) reconcileWith(ctx context.Context, u *upstream, set *Setting
 			continue
 		}
 		s.p.log.Info("extension installed in mihon-source", "extension", pkg, "version", installed.Msg.GetExtension().GetVersionName())
+		run.Add("extensions_installed", 1)
+		run.Note(jobs.LevelInfo, "Installed "+pkg+" "+installed.Msg.GetExtension().GetVersionName(), pkg)
 	}
 	return problems
 }
@@ -231,4 +252,49 @@ func pickOffer(offers []*mihonv1.AvailableExtension) *mihonv1.AvailableExtension
 		}
 	}
 	return best
+}
+
+// Where mihon-source says a schedule set over its API comes from.
+const scheduleFromAPI = "SetHealthCheckSchedule"
+
+// syncHealthChecks applies health_checks to mihon-source: an interval (with
+// the plugin's languages and the sample), "off", or "default" to go back to
+// mihon-source's own. An empty interval leaves mihon-source alone. It
+// returns a problem, or "".
+func (s *storeSync) syncHealthChecks(ctx context.Context, u *upstream, set *Settings) string {
+	if set.HealthInterval == "" {
+		return ""
+	}
+	var want *mihonv1.HealthCheckSchedule
+	if set.HealthInterval != "default" {
+		langs := slices.Clone(set.Langs)
+		slices.Sort(langs)
+		want = &mihonv1.HealthCheckSchedule{Langs: langs, Sample: uint32(max(set.HealthSample, 0))} //nolint:gosec // not negative
+		if every := set.healthEvery(); every > 0 {
+			want.Interval = durationpb.New(every)
+		}
+	}
+	cur, err := call(ctx, u, func() (*connect.Response[mihonv1.GetHealthCheckScheduleResponse], error) {
+		return u.extensions.GetHealthCheckSchedule(ctx, connect.NewRequest(&mihonv1.GetHealthCheckScheduleRequest{}))
+	})
+	if plugin.ErrorCode(err) == plugin.CodeUnimplemented {
+		return "health checks: this mihon-source can't take a schedule; update it, or leave health_checks.interval empty"
+	}
+	if err != nil {
+		return fmt.Sprintf("health checks: %v", u.mapError(err))
+	}
+	have := proto.CloneOf(cur.Msg.GetSchedule())
+	fromAPI := have.GetSource() == scheduleFromAPI
+	have.Source = ""
+	if (want == nil && !fromAPI) || (want != nil && fromAPI && proto.Equal(have, want)) {
+		return ""
+	}
+	_, err = call(ctx, u, func() (*connect.Response[mihonv1.SetHealthCheckScheduleResponse], error) {
+		return u.extensions.SetHealthCheckSchedule(ctx, connect.NewRequest(&mihonv1.SetHealthCheckScheduleRequest{Schedule: want}))
+	})
+	if err != nil {
+		return fmt.Sprintf("health checks: %v", u.mapError(err))
+	}
+	s.p.log.Info("health-check schedule set in mihon-source", "interval", set.HealthInterval, "sample", set.HealthSample, "langs", set.Langs)
+	return ""
 }

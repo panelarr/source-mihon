@@ -74,7 +74,7 @@ sync-mihon-protos: ## Pin the mihon-source protos from a checkout: make sync-mih
 	@commit=$$(git -C $(MIHON_SOURCE_DIR) rev-parse "$(or $(REF),main)^{commit}") && \
 	grep -E '^(#|repository=)' third_party/mihon-source/PIN > third_party/mihon-source/PIN.new && \
 	echo "commit=$$commit" >> third_party/mihon-source/PIN.new && \
-	for f in extensions stores; do \
+	for f in extensions jobs stores; do \
 		git -C $(MIHON_SOURCE_DIR) show $$commit:proto/panelarr/mihon/v1/$$f.proto > third_party/mihon-source/proto/panelarr/mihon/v1/$$f.proto; \
 		echo "sha256.$$f.proto=$$(shasum -a 256 third_party/mihon-source/proto/panelarr/mihon/v1/$$f.proto | cut -d' ' -f1)" >> third_party/mihon-source/PIN.new; \
 	done && mv third_party/mihon-source/PIN.new third_party/mihon-source/PIN && echo "pinned mihon-source $$commit; run make gen"

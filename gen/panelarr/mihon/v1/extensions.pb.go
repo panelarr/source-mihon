@@ -1294,6 +1294,249 @@ func (x *StepResult) GetDetail() string {
 	return ""
 }
 
+// When the `source-health` job checks sources on its own, and which.
+type HealthCheckSchedule struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// How often. Unset means no scheduled checks; at least a minute otherwise.
+	Interval *durationpb.Duration `protobuf:"bytes,1,opt,name=interval,proto3" json:"interval,omitempty"`
+	// Source languages the checks cover. Empty means all.
+	Langs []string `protobuf:"bytes,2,rep,name=langs,proto3" json:"langs,omitempty"`
+	// Sources per round, the least recently checked first. 0 means all.
+	Sample uint32 `protobuf:"varint,3,opt,name=sample,proto3" json:"sample,omitempty"`
+	// Where the schedule comes from: "SetHealthCheckSchedule" once set over the API, or
+	// the environment variables. Ignored in SetHealthCheckSchedule.
+	Source        string `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HealthCheckSchedule) Reset() {
+	*x = HealthCheckSchedule{}
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HealthCheckSchedule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HealthCheckSchedule) ProtoMessage() {}
+
+func (x *HealthCheckSchedule) ProtoReflect() protoreflect.Message {
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HealthCheckSchedule.ProtoReflect.Descriptor instead.
+func (*HealthCheckSchedule) Descriptor() ([]byte, []int) {
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *HealthCheckSchedule) GetInterval() *durationpb.Duration {
+	if x != nil {
+		return x.Interval
+	}
+	return nil
+}
+
+func (x *HealthCheckSchedule) GetLangs() []string {
+	if x != nil {
+		return x.Langs
+	}
+	return nil
+}
+
+func (x *HealthCheckSchedule) GetSample() uint32 {
+	if x != nil {
+		return x.Sample
+	}
+	return 0
+}
+
+func (x *HealthCheckSchedule) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+type GetHealthCheckScheduleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHealthCheckScheduleRequest) Reset() {
+	*x = GetHealthCheckScheduleRequest{}
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHealthCheckScheduleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHealthCheckScheduleRequest) ProtoMessage() {}
+
+func (x *GetHealthCheckScheduleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHealthCheckScheduleRequest.ProtoReflect.Descriptor instead.
+func (*GetHealthCheckScheduleRequest) Descriptor() ([]byte, []int) {
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{16}
+}
+
+type GetHealthCheckScheduleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Schedule      *HealthCheckSchedule   `protobuf:"bytes,1,opt,name=schedule,proto3" json:"schedule,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHealthCheckScheduleResponse) Reset() {
+	*x = GetHealthCheckScheduleResponse{}
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHealthCheckScheduleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHealthCheckScheduleResponse) ProtoMessage() {}
+
+func (x *GetHealthCheckScheduleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHealthCheckScheduleResponse.ProtoReflect.Descriptor instead.
+func (*GetHealthCheckScheduleResponse) Descriptor() ([]byte, []int) {
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *GetHealthCheckScheduleResponse) GetSchedule() *HealthCheckSchedule {
+	if x != nil {
+		return x.Schedule
+	}
+	return nil
+}
+
+type SetHealthCheckScheduleRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The new schedule; unset goes back to the environment's.
+	Schedule      *HealthCheckSchedule `protobuf:"bytes,1,opt,name=schedule,proto3" json:"schedule,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetHealthCheckScheduleRequest) Reset() {
+	*x = SetHealthCheckScheduleRequest{}
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetHealthCheckScheduleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetHealthCheckScheduleRequest) ProtoMessage() {}
+
+func (x *SetHealthCheckScheduleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetHealthCheckScheduleRequest.ProtoReflect.Descriptor instead.
+func (*SetHealthCheckScheduleRequest) Descriptor() ([]byte, []int) {
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *SetHealthCheckScheduleRequest) GetSchedule() *HealthCheckSchedule {
+	if x != nil {
+		return x.Schedule
+	}
+	return nil
+}
+
+type SetHealthCheckScheduleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Schedule      *HealthCheckSchedule   `protobuf:"bytes,1,opt,name=schedule,proto3" json:"schedule,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetHealthCheckScheduleResponse) Reset() {
+	*x = SetHealthCheckScheduleResponse{}
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetHealthCheckScheduleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetHealthCheckScheduleResponse) ProtoMessage() {}
+
+func (x *SetHealthCheckScheduleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetHealthCheckScheduleResponse.ProtoReflect.Descriptor instead.
+func (*SetHealthCheckScheduleResponse) Descriptor() ([]byte, []int) {
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *SetHealthCheckScheduleResponse) GetSchedule() *HealthCheckSchedule {
+	if x != nil {
+		return x.Schedule
+	}
+	return nil
+}
+
 type SetHealthCheckRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SourceId      string                 `protobuf:"bytes,1,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
@@ -1304,7 +1547,7 @@ type SetHealthCheckRequest struct {
 
 func (x *SetHealthCheckRequest) Reset() {
 	*x = SetHealthCheckRequest{}
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[15]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1316,7 +1559,7 @@ func (x *SetHealthCheckRequest) String() string {
 func (*SetHealthCheckRequest) ProtoMessage() {}
 
 func (x *SetHealthCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[15]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1329,7 +1572,7 @@ func (x *SetHealthCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetHealthCheckRequest.ProtoReflect.Descriptor instead.
 func (*SetHealthCheckRequest) Descriptor() ([]byte, []int) {
-	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{15}
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *SetHealthCheckRequest) GetSourceId() string {
@@ -1354,7 +1597,7 @@ type SetHealthCheckResponse struct {
 
 func (x *SetHealthCheckResponse) Reset() {
 	*x = SetHealthCheckResponse{}
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[16]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1366,7 +1609,7 @@ func (x *SetHealthCheckResponse) String() string {
 func (*SetHealthCheckResponse) ProtoMessage() {}
 
 func (x *SetHealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[16]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1379,7 +1622,7 @@ func (x *SetHealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetHealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*SetHealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{16}
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{21}
 }
 
 type ReloadExtensionRequest struct {
@@ -1391,7 +1634,7 @@ type ReloadExtensionRequest struct {
 
 func (x *ReloadExtensionRequest) Reset() {
 	*x = ReloadExtensionRequest{}
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[17]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1403,7 +1646,7 @@ func (x *ReloadExtensionRequest) String() string {
 func (*ReloadExtensionRequest) ProtoMessage() {}
 
 func (x *ReloadExtensionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[17]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1416,7 +1659,7 @@ func (x *ReloadExtensionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReloadExtensionRequest.ProtoReflect.Descriptor instead.
 func (*ReloadExtensionRequest) Descriptor() ([]byte, []int) {
-	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{17}
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ReloadExtensionRequest) GetPkgName() string {
@@ -1435,7 +1678,7 @@ type ReloadExtensionResponse struct {
 
 func (x *ReloadExtensionResponse) Reset() {
 	*x = ReloadExtensionResponse{}
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[18]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1447,7 +1690,7 @@ func (x *ReloadExtensionResponse) String() string {
 func (*ReloadExtensionResponse) ProtoMessage() {}
 
 func (x *ReloadExtensionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[18]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1460,7 +1703,7 @@ func (x *ReloadExtensionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReloadExtensionResponse.ProtoReflect.Descriptor instead.
 func (*ReloadExtensionResponse) Descriptor() ([]byte, []int) {
-	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{18}
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ReloadExtensionResponse) GetExtension() *Extension {
@@ -1481,7 +1724,7 @@ type SetExtensionLanguagesRequest struct {
 
 func (x *SetExtensionLanguagesRequest) Reset() {
 	*x = SetExtensionLanguagesRequest{}
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[19]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1493,7 +1736,7 @@ func (x *SetExtensionLanguagesRequest) String() string {
 func (*SetExtensionLanguagesRequest) ProtoMessage() {}
 
 func (x *SetExtensionLanguagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[19]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1506,7 +1749,7 @@ func (x *SetExtensionLanguagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetExtensionLanguagesRequest.ProtoReflect.Descriptor instead.
 func (*SetExtensionLanguagesRequest) Descriptor() ([]byte, []int) {
-	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{19}
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *SetExtensionLanguagesRequest) GetPkgName() string {
@@ -1532,7 +1775,7 @@ type SetExtensionLanguagesResponse struct {
 
 func (x *SetExtensionLanguagesResponse) Reset() {
 	*x = SetExtensionLanguagesResponse{}
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[20]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1544,7 +1787,7 @@ func (x *SetExtensionLanguagesResponse) String() string {
 func (*SetExtensionLanguagesResponse) ProtoMessage() {}
 
 func (x *SetExtensionLanguagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[20]
+	mi := &file_panelarr_mihon_v1_extensions_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1557,7 +1800,7 @@ func (x *SetExtensionLanguagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetExtensionLanguagesResponse.ProtoReflect.Descriptor instead.
 func (*SetExtensionLanguagesResponse) Descriptor() ([]byte, []int) {
-	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{20}
+	return file_panelarr_mihon_v1_extensions_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *SetExtensionLanguagesResponse) GetExtension() *Extension {
@@ -1650,7 +1893,19 @@ const file_panelarr_mihon_v1_extensions_proto_rawDesc = "" +
 	"\x06reason\x18\x04 \x01(\tR\x06reason\x12\x18\n" +
 	"\amessage\x18\x05 \x01(\tR\amessage\x125\n" +
 	"\bduration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\bduration\x12\x16\n" +
-	"\x06detail\x18\a \x01(\tR\x06detail\"N\n" +
+	"\x06detail\x18\a \x01(\tR\x06detail\"\x92\x01\n" +
+	"\x13HealthCheckSchedule\x125\n" +
+	"\binterval\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\binterval\x12\x14\n" +
+	"\x05langs\x18\x02 \x03(\tR\x05langs\x12\x16\n" +
+	"\x06sample\x18\x03 \x01(\rR\x06sample\x12\x16\n" +
+	"\x06source\x18\x04 \x01(\tR\x06source\"\x1f\n" +
+	"\x1dGetHealthCheckScheduleRequest\"d\n" +
+	"\x1eGetHealthCheckScheduleResponse\x12B\n" +
+	"\bschedule\x18\x01 \x01(\v2&.panelarr.mihon.v1.HealthCheckScheduleR\bschedule\"c\n" +
+	"\x1dSetHealthCheckScheduleRequest\x12B\n" +
+	"\bschedule\x18\x01 \x01(\v2&.panelarr.mihon.v1.HealthCheckScheduleR\bschedule\"d\n" +
+	"\x1eSetHealthCheckScheduleResponse\x12B\n" +
+	"\bschedule\x18\x01 \x01(\v2&.panelarr.mihon.v1.HealthCheckScheduleR\bschedule\"N\n" +
 	"\x15SetHealthCheckRequest\x12\x1b\n" +
 	"\tsource_id\x18\x01 \x01(\tR\bsourceId\x12\x18\n" +
 	"\aenabled\x18\x02 \x01(\bR\aenabled\"\x18\n" +
@@ -1685,14 +1940,16 @@ const file_panelarr_mihon_v1_extensions_proto_rawDesc = "" +
 	"\x12CHECK_STEP_DETAILS\x10\x04\x12\x17\n" +
 	"\x13CHECK_STEP_CHAPTERS\x10\x05\x12\x14\n" +
 	"\x10CHECK_STEP_PAGES\x10\x06\x12\x14\n" +
-	"\x10CHECK_STEP_IMAGE\x10\a2\xbe\t\n" +
+	"\x10CHECK_STEP_IMAGE\x10\a2\x95\f\n" +
 	"\x11MihonAdminService\x12\x83\x01\n" +
 	"\x0eListExtensions\x12(.panelarr.mihon.v1.ListExtensionsRequest\x1a).panelarr.mihon.v1.ListExtensionsResponse\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/admin/extensions\x12\x88\x01\n" +
 	"\fGetExtension\x12&.panelarr.mihon.v1.GetExtensionRequest\x1a'.panelarr.mihon.v1.GetExtensionResponse\"'\x82\xd3\xe4\x93\x02!\x12\x1f/v1/admin/extensions/{pkg_name}\x12\x8c\x01\n" +
 	"\x10InstallExtension\x12*.panelarr.mihon.v1.InstallExtensionRequest\x1a+.panelarr.mihon.v1.InstallExtensionResponse\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/admin/extensions\x12\x9a\x01\n" +
 	"\x12UninstallExtension\x12,.panelarr.mihon.v1.UninstallExtensionRequest\x1a-.panelarr.mihon.v1.UninstallExtensionResponse\"'\x82\xd3\xe4\x93\x02!*\x1f/v1/admin/extensions/{pkg_name}\x12|\n" +
 	"\fCheckSources\x12&.panelarr.mihon.v1.CheckSourcesRequest\x1a'.panelarr.mihon.v1.CheckSourcesResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/admin/checks\x12\x9c\x01\n" +
-	"\x0eSetHealthCheck\x12(.panelarr.mihon.v1.SetHealthCheckRequest\x1a).panelarr.mihon.v1.SetHealthCheckResponse\"5\x82\xd3\xe4\x93\x02/:\x01*\x1a*/v1/admin/sources/{source_id}/health-check\x12\xb0\x01\n" +
+	"\x0eSetHealthCheck\x12(.panelarr.mihon.v1.SetHealthCheckRequest\x1a).panelarr.mihon.v1.SetHealthCheckResponse\"5\x82\xd3\xe4\x93\x02/:\x01*\x1a*/v1/admin/sources/{source_id}/health-check\x12\xa7\x01\n" +
+	"\x16GetHealthCheckSchedule\x120.panelarr.mihon.v1.GetHealthCheckScheduleRequest\x1a1.panelarr.mihon.v1.GetHealthCheckScheduleResponse\"(\x82\xd3\xe4\x93\x02\"\x12 /v1/admin/health-checks/schedule\x12\xaa\x01\n" +
+	"\x16SetHealthCheckSchedule\x120.panelarr.mihon.v1.SetHealthCheckScheduleRequest\x1a1.panelarr.mihon.v1.SetHealthCheckScheduleResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\x1a /v1/admin/health-checks/schedule\x12\xb0\x01\n" +
 	"\x15SetExtensionLanguages\x12/.panelarr.mihon.v1.SetExtensionLanguagesRequest\x1a0.panelarr.mihon.v1.SetExtensionLanguagesResponse\"4\x82\xd3\xe4\x93\x02.:\x01*\x1a)/v1/admin/extensions/{pkg_name}/languages\x12\x9b\x01\n" +
 	"\x0fReloadExtension\x12).panelarr.mihon.v1.ReloadExtensionRequest\x1a*.panelarr.mihon.v1.ReloadExtensionResponse\"1\x82\xd3\xe4\x93\x02+:\x01*\"&/v1/admin/extensions/{pkg_name}/reloadB\xce\x01\n" +
 	"\x15com.panelarr.mihon.v1B\x0fExtensionsProtoP\x01Z>github.com/panelarr/source-mihon/gen/panelarr/mihon/v1;mihonv1\xa2\x02\x03PMX\xaa\x02\x11Panelarr.Mihon.V1\xca\x02\x11Panelarr\\Mihon\\V1\xe2\x02\x1dPanelarr\\Mihon\\V1\\GPBMetadata\xea\x02\x13Panelarr::Mihon::V1b\x06proto3"
@@ -1710,35 +1967,40 @@ func file_panelarr_mihon_v1_extensions_proto_rawDescGZIP() []byte {
 }
 
 var file_panelarr_mihon_v1_extensions_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_panelarr_mihon_v1_extensions_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_panelarr_mihon_v1_extensions_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_panelarr_mihon_v1_extensions_proto_goTypes = []any{
-	(ExtensionFormat)(0),                  // 0: panelarr.mihon.v1.ExtensionFormat
-	(ContentWarning)(0),                   // 1: panelarr.mihon.v1.ContentWarning
-	(ExtensionStatus)(0),                  // 2: panelarr.mihon.v1.ExtensionStatus
-	(CheckStep)(0),                        // 3: panelarr.mihon.v1.CheckStep
-	(*Extension)(nil),                     // 4: panelarr.mihon.v1.Extension
-	(*ExtensionSource)(nil),               // 5: panelarr.mihon.v1.ExtensionSource
-	(*ExtensionOrigin)(nil),               // 6: panelarr.mihon.v1.ExtensionOrigin
-	(*ListExtensionsRequest)(nil),         // 7: panelarr.mihon.v1.ListExtensionsRequest
-	(*ListExtensionsResponse)(nil),        // 8: panelarr.mihon.v1.ListExtensionsResponse
-	(*GetExtensionRequest)(nil),           // 9: panelarr.mihon.v1.GetExtensionRequest
-	(*GetExtensionResponse)(nil),          // 10: panelarr.mihon.v1.GetExtensionResponse
-	(*InstallExtensionRequest)(nil),       // 11: panelarr.mihon.v1.InstallExtensionRequest
-	(*InstallExtensionResponse)(nil),      // 12: panelarr.mihon.v1.InstallExtensionResponse
-	(*UninstallExtensionRequest)(nil),     // 13: panelarr.mihon.v1.UninstallExtensionRequest
-	(*UninstallExtensionResponse)(nil),    // 14: panelarr.mihon.v1.UninstallExtensionResponse
-	(*CheckSourcesRequest)(nil),           // 15: panelarr.mihon.v1.CheckSourcesRequest
-	(*CheckSourcesResponse)(nil),          // 16: panelarr.mihon.v1.CheckSourcesResponse
-	(*SourceCheck)(nil),                   // 17: panelarr.mihon.v1.SourceCheck
-	(*StepResult)(nil),                    // 18: panelarr.mihon.v1.StepResult
-	(*SetHealthCheckRequest)(nil),         // 19: panelarr.mihon.v1.SetHealthCheckRequest
-	(*SetHealthCheckResponse)(nil),        // 20: panelarr.mihon.v1.SetHealthCheckResponse
-	(*ReloadExtensionRequest)(nil),        // 21: panelarr.mihon.v1.ReloadExtensionRequest
-	(*ReloadExtensionResponse)(nil),       // 22: panelarr.mihon.v1.ReloadExtensionResponse
-	(*SetExtensionLanguagesRequest)(nil),  // 23: panelarr.mihon.v1.SetExtensionLanguagesRequest
-	(*SetExtensionLanguagesResponse)(nil), // 24: panelarr.mihon.v1.SetExtensionLanguagesResponse
-	(*timestamppb.Timestamp)(nil),         // 25: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),           // 26: google.protobuf.Duration
+	(ExtensionFormat)(0),                   // 0: panelarr.mihon.v1.ExtensionFormat
+	(ContentWarning)(0),                    // 1: panelarr.mihon.v1.ContentWarning
+	(ExtensionStatus)(0),                   // 2: panelarr.mihon.v1.ExtensionStatus
+	(CheckStep)(0),                         // 3: panelarr.mihon.v1.CheckStep
+	(*Extension)(nil),                      // 4: panelarr.mihon.v1.Extension
+	(*ExtensionSource)(nil),                // 5: panelarr.mihon.v1.ExtensionSource
+	(*ExtensionOrigin)(nil),                // 6: panelarr.mihon.v1.ExtensionOrigin
+	(*ListExtensionsRequest)(nil),          // 7: panelarr.mihon.v1.ListExtensionsRequest
+	(*ListExtensionsResponse)(nil),         // 8: panelarr.mihon.v1.ListExtensionsResponse
+	(*GetExtensionRequest)(nil),            // 9: panelarr.mihon.v1.GetExtensionRequest
+	(*GetExtensionResponse)(nil),           // 10: panelarr.mihon.v1.GetExtensionResponse
+	(*InstallExtensionRequest)(nil),        // 11: panelarr.mihon.v1.InstallExtensionRequest
+	(*InstallExtensionResponse)(nil),       // 12: panelarr.mihon.v1.InstallExtensionResponse
+	(*UninstallExtensionRequest)(nil),      // 13: panelarr.mihon.v1.UninstallExtensionRequest
+	(*UninstallExtensionResponse)(nil),     // 14: panelarr.mihon.v1.UninstallExtensionResponse
+	(*CheckSourcesRequest)(nil),            // 15: panelarr.mihon.v1.CheckSourcesRequest
+	(*CheckSourcesResponse)(nil),           // 16: panelarr.mihon.v1.CheckSourcesResponse
+	(*SourceCheck)(nil),                    // 17: panelarr.mihon.v1.SourceCheck
+	(*StepResult)(nil),                     // 18: panelarr.mihon.v1.StepResult
+	(*HealthCheckSchedule)(nil),            // 19: panelarr.mihon.v1.HealthCheckSchedule
+	(*GetHealthCheckScheduleRequest)(nil),  // 20: panelarr.mihon.v1.GetHealthCheckScheduleRequest
+	(*GetHealthCheckScheduleResponse)(nil), // 21: panelarr.mihon.v1.GetHealthCheckScheduleResponse
+	(*SetHealthCheckScheduleRequest)(nil),  // 22: panelarr.mihon.v1.SetHealthCheckScheduleRequest
+	(*SetHealthCheckScheduleResponse)(nil), // 23: panelarr.mihon.v1.SetHealthCheckScheduleResponse
+	(*SetHealthCheckRequest)(nil),          // 24: panelarr.mihon.v1.SetHealthCheckRequest
+	(*SetHealthCheckResponse)(nil),         // 25: panelarr.mihon.v1.SetHealthCheckResponse
+	(*ReloadExtensionRequest)(nil),         // 26: panelarr.mihon.v1.ReloadExtensionRequest
+	(*ReloadExtensionResponse)(nil),        // 27: panelarr.mihon.v1.ReloadExtensionResponse
+	(*SetExtensionLanguagesRequest)(nil),   // 28: panelarr.mihon.v1.SetExtensionLanguagesRequest
+	(*SetExtensionLanguagesResponse)(nil),  // 29: panelarr.mihon.v1.SetExtensionLanguagesResponse
+	(*timestamppb.Timestamp)(nil),          // 30: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),            // 31: google.protobuf.Duration
 }
 var file_panelarr_mihon_v1_extensions_proto_depIdxs = []int32{
 	0,  // 0: panelarr.mihon.v1.Extension.format:type_name -> panelarr.mihon.v1.ExtensionFormat
@@ -1746,39 +2008,47 @@ var file_panelarr_mihon_v1_extensions_proto_depIdxs = []int32{
 	2,  // 2: panelarr.mihon.v1.Extension.status:type_name -> panelarr.mihon.v1.ExtensionStatus
 	5,  // 3: panelarr.mihon.v1.Extension.sources:type_name -> panelarr.mihon.v1.ExtensionSource
 	6,  // 4: panelarr.mihon.v1.Extension.origin:type_name -> panelarr.mihon.v1.ExtensionOrigin
-	25, // 5: panelarr.mihon.v1.Extension.installed_at:type_name -> google.protobuf.Timestamp
+	30, // 5: panelarr.mihon.v1.Extension.installed_at:type_name -> google.protobuf.Timestamp
 	4,  // 6: panelarr.mihon.v1.ListExtensionsResponse.extensions:type_name -> panelarr.mihon.v1.Extension
 	4,  // 7: panelarr.mihon.v1.GetExtensionResponse.extension:type_name -> panelarr.mihon.v1.Extension
 	4,  // 8: panelarr.mihon.v1.InstallExtensionResponse.extension:type_name -> panelarr.mihon.v1.Extension
 	3,  // 9: panelarr.mihon.v1.CheckSourcesRequest.steps:type_name -> panelarr.mihon.v1.CheckStep
 	17, // 10: panelarr.mihon.v1.CheckSourcesResponse.results:type_name -> panelarr.mihon.v1.SourceCheck
 	18, // 11: panelarr.mihon.v1.SourceCheck.steps:type_name -> panelarr.mihon.v1.StepResult
-	25, // 12: panelarr.mihon.v1.SourceCheck.checked_at:type_name -> google.protobuf.Timestamp
+	30, // 12: panelarr.mihon.v1.SourceCheck.checked_at:type_name -> google.protobuf.Timestamp
 	3,  // 13: panelarr.mihon.v1.StepResult.step:type_name -> panelarr.mihon.v1.CheckStep
-	26, // 14: panelarr.mihon.v1.StepResult.duration:type_name -> google.protobuf.Duration
-	4,  // 15: panelarr.mihon.v1.ReloadExtensionResponse.extension:type_name -> panelarr.mihon.v1.Extension
-	4,  // 16: panelarr.mihon.v1.SetExtensionLanguagesResponse.extension:type_name -> panelarr.mihon.v1.Extension
-	7,  // 17: panelarr.mihon.v1.MihonAdminService.ListExtensions:input_type -> panelarr.mihon.v1.ListExtensionsRequest
-	9,  // 18: panelarr.mihon.v1.MihonAdminService.GetExtension:input_type -> panelarr.mihon.v1.GetExtensionRequest
-	11, // 19: panelarr.mihon.v1.MihonAdminService.InstallExtension:input_type -> panelarr.mihon.v1.InstallExtensionRequest
-	13, // 20: panelarr.mihon.v1.MihonAdminService.UninstallExtension:input_type -> panelarr.mihon.v1.UninstallExtensionRequest
-	15, // 21: panelarr.mihon.v1.MihonAdminService.CheckSources:input_type -> panelarr.mihon.v1.CheckSourcesRequest
-	19, // 22: panelarr.mihon.v1.MihonAdminService.SetHealthCheck:input_type -> panelarr.mihon.v1.SetHealthCheckRequest
-	23, // 23: panelarr.mihon.v1.MihonAdminService.SetExtensionLanguages:input_type -> panelarr.mihon.v1.SetExtensionLanguagesRequest
-	21, // 24: panelarr.mihon.v1.MihonAdminService.ReloadExtension:input_type -> panelarr.mihon.v1.ReloadExtensionRequest
-	8,  // 25: panelarr.mihon.v1.MihonAdminService.ListExtensions:output_type -> panelarr.mihon.v1.ListExtensionsResponse
-	10, // 26: panelarr.mihon.v1.MihonAdminService.GetExtension:output_type -> panelarr.mihon.v1.GetExtensionResponse
-	12, // 27: panelarr.mihon.v1.MihonAdminService.InstallExtension:output_type -> panelarr.mihon.v1.InstallExtensionResponse
-	14, // 28: panelarr.mihon.v1.MihonAdminService.UninstallExtension:output_type -> panelarr.mihon.v1.UninstallExtensionResponse
-	16, // 29: panelarr.mihon.v1.MihonAdminService.CheckSources:output_type -> panelarr.mihon.v1.CheckSourcesResponse
-	20, // 30: panelarr.mihon.v1.MihonAdminService.SetHealthCheck:output_type -> panelarr.mihon.v1.SetHealthCheckResponse
-	24, // 31: panelarr.mihon.v1.MihonAdminService.SetExtensionLanguages:output_type -> panelarr.mihon.v1.SetExtensionLanguagesResponse
-	22, // 32: panelarr.mihon.v1.MihonAdminService.ReloadExtension:output_type -> panelarr.mihon.v1.ReloadExtensionResponse
-	25, // [25:33] is the sub-list for method output_type
-	17, // [17:25] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	31, // 14: panelarr.mihon.v1.StepResult.duration:type_name -> google.protobuf.Duration
+	31, // 15: panelarr.mihon.v1.HealthCheckSchedule.interval:type_name -> google.protobuf.Duration
+	19, // 16: panelarr.mihon.v1.GetHealthCheckScheduleResponse.schedule:type_name -> panelarr.mihon.v1.HealthCheckSchedule
+	19, // 17: panelarr.mihon.v1.SetHealthCheckScheduleRequest.schedule:type_name -> panelarr.mihon.v1.HealthCheckSchedule
+	19, // 18: panelarr.mihon.v1.SetHealthCheckScheduleResponse.schedule:type_name -> panelarr.mihon.v1.HealthCheckSchedule
+	4,  // 19: panelarr.mihon.v1.ReloadExtensionResponse.extension:type_name -> panelarr.mihon.v1.Extension
+	4,  // 20: panelarr.mihon.v1.SetExtensionLanguagesResponse.extension:type_name -> panelarr.mihon.v1.Extension
+	7,  // 21: panelarr.mihon.v1.MihonAdminService.ListExtensions:input_type -> panelarr.mihon.v1.ListExtensionsRequest
+	9,  // 22: panelarr.mihon.v1.MihonAdminService.GetExtension:input_type -> panelarr.mihon.v1.GetExtensionRequest
+	11, // 23: panelarr.mihon.v1.MihonAdminService.InstallExtension:input_type -> panelarr.mihon.v1.InstallExtensionRequest
+	13, // 24: panelarr.mihon.v1.MihonAdminService.UninstallExtension:input_type -> panelarr.mihon.v1.UninstallExtensionRequest
+	15, // 25: panelarr.mihon.v1.MihonAdminService.CheckSources:input_type -> panelarr.mihon.v1.CheckSourcesRequest
+	24, // 26: panelarr.mihon.v1.MihonAdminService.SetHealthCheck:input_type -> panelarr.mihon.v1.SetHealthCheckRequest
+	20, // 27: panelarr.mihon.v1.MihonAdminService.GetHealthCheckSchedule:input_type -> panelarr.mihon.v1.GetHealthCheckScheduleRequest
+	22, // 28: panelarr.mihon.v1.MihonAdminService.SetHealthCheckSchedule:input_type -> panelarr.mihon.v1.SetHealthCheckScheduleRequest
+	28, // 29: panelarr.mihon.v1.MihonAdminService.SetExtensionLanguages:input_type -> panelarr.mihon.v1.SetExtensionLanguagesRequest
+	26, // 30: panelarr.mihon.v1.MihonAdminService.ReloadExtension:input_type -> panelarr.mihon.v1.ReloadExtensionRequest
+	8,  // 31: panelarr.mihon.v1.MihonAdminService.ListExtensions:output_type -> panelarr.mihon.v1.ListExtensionsResponse
+	10, // 32: panelarr.mihon.v1.MihonAdminService.GetExtension:output_type -> panelarr.mihon.v1.GetExtensionResponse
+	12, // 33: panelarr.mihon.v1.MihonAdminService.InstallExtension:output_type -> panelarr.mihon.v1.InstallExtensionResponse
+	14, // 34: panelarr.mihon.v1.MihonAdminService.UninstallExtension:output_type -> panelarr.mihon.v1.UninstallExtensionResponse
+	16, // 35: panelarr.mihon.v1.MihonAdminService.CheckSources:output_type -> panelarr.mihon.v1.CheckSourcesResponse
+	25, // 36: panelarr.mihon.v1.MihonAdminService.SetHealthCheck:output_type -> panelarr.mihon.v1.SetHealthCheckResponse
+	21, // 37: panelarr.mihon.v1.MihonAdminService.GetHealthCheckSchedule:output_type -> panelarr.mihon.v1.GetHealthCheckScheduleResponse
+	23, // 38: panelarr.mihon.v1.MihonAdminService.SetHealthCheckSchedule:output_type -> panelarr.mihon.v1.SetHealthCheckScheduleResponse
+	29, // 39: panelarr.mihon.v1.MihonAdminService.SetExtensionLanguages:output_type -> panelarr.mihon.v1.SetExtensionLanguagesResponse
+	27, // 40: panelarr.mihon.v1.MihonAdminService.ReloadExtension:output_type -> panelarr.mihon.v1.ReloadExtensionResponse
+	31, // [31:41] is the sub-list for method output_type
+	21, // [21:31] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_panelarr_mihon_v1_extensions_proto_init() }
@@ -1801,7 +2071,7 @@ func file_panelarr_mihon_v1_extensions_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_panelarr_mihon_v1_extensions_proto_rawDesc), len(file_panelarr_mihon_v1_extensions_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   21,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

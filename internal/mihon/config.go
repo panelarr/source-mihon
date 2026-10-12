@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/panelarr/source-api/sdk/settings"
 )
@@ -63,6 +65,29 @@ const configSchema = `{
       "description": "Package names of extensions to install from the stores when they're missing. Updates are installed in mihon-source.",
       "items": {"type": "string", "title": "Extension", "description": "The extension's package name, as the store lists it."},
       "default": []
+    },
+    "health_checks": {
+      "type": "object",
+      "title": "Source health checks",
+      "description": "How often mihon-source checks its sources on its own. The checks cover the languages above. Turn checks off for one source on the source itself.",
+      "properties": {
+        "interval": {
+          "type": "string",
+          "title": "Interval",
+          "description": "How often, e.g. 6h or 1d (m, h or d). off: no scheduled checks. default: mihon-source's own setting (its MIHON_HEALTH_CHECK_* variables). Empty leaves mihon-source as it is.",
+          "pattern": "^(|off|default|[1-9][0-9]*[mhd])$",
+          "default": ""
+        },
+        "sample": {
+          "type": "integer",
+          "title": "Sources per round",
+          "description": "How many sources each round checks, the least recently checked first, so rounds rotate through all of them. 0 checks every source each round.",
+          "minimum": 0,
+          "default": 10
+        }
+      },
+      "additionalProperties": false,
+      "default": {"interval": "", "sample": 10}
     }
   },
   "required": ["mihon_source_url"],
@@ -77,6 +102,25 @@ type Settings struct {
 	Langs      []string
 	Stores     []StoreSetting
 	Extensions []string
+	// HealthInterval is health_checks.interval: "", "off", "default" or a
+	// number and unit (m, h, d).
+	HealthInterval string
+	// HealthSample is health_checks.sample; 0 means all.
+	HealthSample int
+}
+
+// healthEvery is the health-check interval asked for; zero for "off".
+func (s *Settings) healthEvery() time.Duration {
+	v := s.HealthInterval
+	if len(v) < 2 {
+		return 0
+	}
+	n, err := strconv.Atoi(v[:len(v)-1])
+	if err != nil {
+		return 0
+	}
+	unit := map[byte]time.Duration{'m': time.Minute, 'h': time.Hour, 'd': 24 * time.Hour}[v[len(v)-1]]
+	return time.Duration(n) * unit
 }
 
 // StoreSetting is one store to keep added.
@@ -110,6 +154,11 @@ func parseSettings(v map[string]any) (Settings, error) {
 		if l := strings.TrimSpace(str(raw)); l != "" && !slices.Contains(s.Langs, l) {
 			s.Langs = append(s.Langs, l)
 		}
+	}
+	hc, _ := v["health_checks"].(map[string]any)
+	s.HealthInterval = strings.TrimSpace(str(hc["interval"]))
+	if n, ok := hc["sample"].(float64); ok && n > 0 {
+		s.HealthSample = int(n)
 	}
 	exts, _ := v["extensions"].([]any)
 	for _, raw := range exts {

@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	sourcev1 "github.com/panelarr/source-api/gen/panelarr/source/v1"
+	"github.com/panelarr/source-api/sdk/jobs"
 	"github.com/panelarr/source-api/sdk/plugin"
 
 	"github.com/panelarr/source-mihon/internal/buildinfo"
@@ -39,6 +40,7 @@ type Plugin struct {
 	up       atomic.Pointer[upstream]
 	settings atomic.Pointer[Settings]
 	stores   *storeSync
+	jobs     *jobs.Runner
 	cat      catalogue
 }
 
@@ -65,17 +67,24 @@ func New(ctx context.Context, opts Options) (*Plugin, error) {
 		opts.SyncEvery = 15 * time.Minute
 	}
 	p := &Plugin{log: opts.Log, metrics: NewMetrics(), managed: opts.Managed}
-	p.stores = newStoreSync(p, opts.SyncEvery)
-	p.PluginConfig = plugin.NewPluginConfig(schema(), p.apply)
-	if err := p.Set(ctx, opts.Initial); err != nil {
+	p.stores = newStoreSync(p)
+	p.jobs = jobs.New(jobs.Options{RunIDPrefix: ownRunPrefix})
+	if err := p.jobs.Add(p.stores.job(opts.SyncEvery)); err != nil {
 		return nil, err
 	}
+	p.PluginConfig = plugin.NewPluginConfig(schema(), p.apply)
+	if err := p.Set(ctx, opts.Initial); err != nil {
+		p.jobs.Stop()
+		return nil, err
+	}
+	p.jobs.Start()
 	return p, nil
 }
 
 // Close stops background work and connections.
 func (p *Plugin) Close() {
 	p.stores.stop()
+	p.jobs.Stop()
 	if u := p.up.Swap(nil); u != nil {
 		u.close()
 	}
@@ -144,6 +153,8 @@ func (p *Plugin) GetInfo(context.Context, *sourcev1.GetInfoRequest) (*sourcev1.G
 			sourcev1.PluginCapability_PLUGIN_CAPABILITY_NETWORK_PROFILES,
 			sourcev1.PluginCapability_PLUGIN_CAPABILITY_DYNAMIC_SOURCES,
 			sourcev1.PluginCapability_PLUGIN_CAPABILITY_PACKAGES,
+			sourcev1.PluginCapability_PLUGIN_CAPABILITY_JOBS,
+			sourcev1.PluginCapability_PLUGIN_CAPABILITY_HEALTH_CHECKS,
 		},
 		// mihon-source also applies each extension's own rate limits and
 		// the profile's. These are what a host should keep to per source.

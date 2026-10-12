@@ -15,6 +15,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
+	jobsv1 "github.com/panelarr/source-api/gen/panelarr/jobs/v1"
 	sourcev1 "github.com/panelarr/source-api/gen/panelarr/source/v1"
 	"github.com/panelarr/source-api/sdk/client"
 	"github.com/panelarr/source-api/sdk/conformance"
@@ -79,7 +80,7 @@ func TestEndToEndPackages(t *testing.T) {
 			t.Errorf("package step %s failed: %s", st.Name, st.Detail)
 		}
 	}
-	if len(rep.PackageSteps) != 6 {
+	if len(rep.PackageSteps) != 7 {
 		t.Fatalf("package steps: %+v", rep.PackageSteps)
 	}
 
@@ -105,6 +106,8 @@ func TestEndToEndPackages(t *testing.T) {
 	if got := strings.Join(langsOf(), ","); got != "en,fr" && got != "fr,en" {
 		t.Fatalf("installed sources: %s", got)
 	}
+	checkOriginsDetailsAndReload(ctx, t, c, storeURL)
+	checkJobsAndHealthChecks(ctx, t, p, c, mihonURL)
 	cfg, _ := structpb.NewStruct(map[string]any{"mihon_source_url": mihonURL, "languages": []any{"fr"}})
 	if _, err := c.SetConfig(ctx, cfg); err != nil {
 		t.Fatal(err)
@@ -119,7 +122,13 @@ func TestEndToEndPackages(t *testing.T) {
 
 	// A newer version in the store: refresh it in mihon-source, then update.
 	version.Store("v2")
-	refreshStores(t, mihonURL)
+	origins, err := c.ListOrigins(ctx, &sourcev1.ListOriginsRequest{})
+	if err != nil || len(origins.GetOrigins()) != 1 {
+		t.Fatalf("origins: %v %v", origins, err)
+	}
+	if _, err := c.RefreshOrigin(ctx, &sourcev1.RefreshOriginRequest{OriginId: origins.GetOrigins()[0].GetId()}); err != nil {
+		t.Fatal(err)
+	}
 	updates, err := c.ListPackages(ctx, &sourcev1.ListPackagesRequest{UpdatesOnly: true})
 	if err != nil || len(updates.GetPackages()) != 1 || updates.GetPackages()[0].GetVersion() != "1.6.3" {
 		t.Fatalf("updates: %v %v", updates, err)
@@ -138,40 +147,104 @@ func TestEndToEndPackages(t *testing.T) {
 	}
 }
 
-// refreshStores asks mihon-source to download its stores' indexes again.
-func refreshStores(t *testing.T, mihonURL string) {
+// checkOriginsDetailsAndReload: the store as an origin, the installed
+// extension's details, and a reload.
+func checkOriginsDetailsAndReload(ctx context.Context, t *testing.T, c client.Client, storeURL string) {
 	t.Helper()
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, mihonURL+"/v1/admin/jobs/store-refresh:run", strings.NewReader("{}"))
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	res, err := http.DefaultClient.Do(req)
+	origins, err := c.ListOrigins(ctx, &sourcev1.ListOriginsRequest{})
+	if err != nil || len(origins.GetOrigins()) != 1 {
+		t.Fatalf("origins: %v %v", origins, err)
+	}
+	o := origins.GetOrigins()[0]
+	if o.GetUrl() != storeURL || o.GetPackageCount() != 1 || o.GetSigningKeyFingerprint() == "" || o.GetRefreshedAt() == nil {
+		t.Fatalf("origin: %v", o)
+	}
+	reloaded, err := c.ReloadPackage(ctx, &sourcev1.ReloadPackageRequest{PackageId: testPkg})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("store refresh: HTTP %d", res.StatusCode)
+	d := reloaded.GetPackage().GetDetails()
+	if d.GetApiVersion() != "1.6" || d.GetOriginId() != o.GetId() || d.GetSigningFingerprint() == "" || d.GetSha256() == "" || d.GetInstalledAt() == nil {
+		t.Fatalf("details: %v", d)
 	}
-	// The job runs in the background; wait until the index says 1.6.3.
-	deadline := time.Now().Add(30 * time.Second)
-	for time.Now().Before(deadline) {
-		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, mihonURL+"/v1/admin/stores/available?updatesOnly=true", nil)
-		req.Header.Set("Authorization", "Bearer "+adminToken)
-		if res, err := http.DefaultClient.Do(req); err == nil {
-			var b strings.Builder
-			buf := make([]byte, 4096)
-			for {
-				n, err := res.Body.Read(buf)
-				b.Write(buf[:n])
-				if err != nil {
-					break
-				}
-			}
-			_ = res.Body.Close()
-			if strings.Contains(b.String(), "1.6.3") {
-				return
-			}
+}
+
+// checkJobsAndHealthChecks: mihon-source's jobs through the plugin, a check
+// of one source with its steps noted, the per-source switch, and the
+// health-check schedule from the plugin's configuration.
+func checkJobsAndHealthChecks(ctx context.Context, t *testing.T, p *mihon.Plugin, c client.Client, mihonURL string) {
+	t.Helper()
+	list, err := c.ListJobs(ctx, &sourcev1.ListJobsRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, j := range list.GetJobs() {
+		ids = append(ids, j.GetId())
+	}
+	if got := strings.Join(ids, ","); !strings.HasPrefix(got, "plugin.sync,") || !strings.Contains(got, "source-health") || !strings.Contains(got, "store-refresh") {
+		t.Fatalf("jobs: %s", got)
+	}
+	sources, err := c.ListSources(ctx, &sourcev1.ListSourcesRequest{Lang: "en"})
+	if err != nil || len(sources.GetSources()) == 0 {
+		t.Fatalf("sources: %v %v", sources, err)
+	}
+	src := sources.GetSources()[0].GetId()
+	run, err := c.RunJob(ctx, &sourcev1.RunJobRequest{JobId: "source-health", Params: map[string]string{"source_ids": src, "steps": "details"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var notes []string
+	for deadline := time.Now().Add(time.Minute); ; {
+		got, err := c.GetJobRun(ctx, &sourcev1.GetJobRunRequest{RunId: run.GetRun().GetId()})
+		if err != nil {
+			t.Fatal(err)
 		}
-		time.Sleep(200 * time.Millisecond)
+		if got.GetRun().GetSummary().GetStatus() != jobsv1.JobRunStatus_JOB_RUN_STATUS_RUNNING {
+			for _, n := range got.GetRun().GetNotes() {
+				notes = append(notes, n.GetMessage())
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the check didn't finish")
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatal("the store refresh didn't show 1.6.3")
+	if all := strings.Join(notes, "\n"); !strings.Contains(all, "popular: ok") || !strings.Contains(all, "details: ok") {
+		t.Fatalf("check notes: %s", all)
+	}
+
+	off, err := c.SetSourceHealthCheck(ctx, &sourcev1.SetSourceHealthCheckRequest{SourceId: src})
+	if err != nil || !off.GetSource().GetHealth().GetChecksDisabled() {
+		t.Fatalf("checks off: %v %v", off, err)
+	}
+	if on, err := c.SetSourceHealthCheck(ctx, &sourcev1.SetSourceHealthCheckRequest{SourceId: src, Enabled: true}); err != nil || on.GetSource().GetHealth().GetChecksDisabled() {
+		t.Fatalf("checks on: %v %v", on, err)
+	}
+
+	before := time.Now()
+	cfg, _ := structpb.NewStruct(map[string]any{
+		"mihon_source_url": mihonURL, "languages": []any{"en"},
+		"health_checks": map[string]any{"interval": "6h", "sample": 2},
+	})
+	if _, err := c.SetConfig(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	syncCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := p.Synced(syncCtx, before); err != nil || p.StoreProblem() != "" {
+		t.Fatalf("sync: %v %q", err, p.StoreProblem())
+	}
+	job, err := c.GetJob(ctx, &sourcev1.GetJobRequest{JobId: "source-health"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := map[string]string{}
+	for _, prm := range job.GetJob().GetParams() {
+		params[prm.GetName()] = prm.GetDefault()
+	}
+	if s := job.GetJob().GetSchedule(); s.GetInterval().AsDuration() != 6*time.Hour || s.GetSource() != "SetHealthCheckSchedule" || params["langs"] != "en" || params["sample"] != "2" {
+		t.Fatalf("source-health job: %v", job.GetJob())
+	}
 }

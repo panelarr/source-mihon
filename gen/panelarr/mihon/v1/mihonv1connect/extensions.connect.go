@@ -53,6 +53,12 @@ const (
 	// MihonAdminServiceSetHealthCheckProcedure is the fully-qualified name of the MihonAdminService's
 	// SetHealthCheck RPC.
 	MihonAdminServiceSetHealthCheckProcedure = "/panelarr.mihon.v1.MihonAdminService/SetHealthCheck"
+	// MihonAdminServiceGetHealthCheckScheduleProcedure is the fully-qualified name of the
+	// MihonAdminService's GetHealthCheckSchedule RPC.
+	MihonAdminServiceGetHealthCheckScheduleProcedure = "/panelarr.mihon.v1.MihonAdminService/GetHealthCheckSchedule"
+	// MihonAdminServiceSetHealthCheckScheduleProcedure is the fully-qualified name of the
+	// MihonAdminService's SetHealthCheckSchedule RPC.
+	MihonAdminServiceSetHealthCheckScheduleProcedure = "/panelarr.mihon.v1.MihonAdminService/SetHealthCheckSchedule"
 	// MihonAdminServiceSetExtensionLanguagesProcedure is the fully-qualified name of the
 	// MihonAdminService's SetExtensionLanguages RPC.
 	MihonAdminServiceSetExtensionLanguagesProcedure = "/panelarr.mihon.v1.MihonAdminService/SetExtensionLanguages"
@@ -81,6 +87,14 @@ type MihonAdminServiceClient interface {
 	// SetHealthCheck turns scheduled health checks on or off for one source. They're on for
 	// every source by default, when the service runs them at all.
 	SetHealthCheck(context.Context, *connect.Request[v1.SetHealthCheckRequest]) (*connect.Response[v1.SetHealthCheckResponse], error)
+	// GetHealthCheckSchedule returns when the `source-health` job checks sources on its
+	// own, and which.
+	GetHealthCheckSchedule(context.Context, *connect.Request[v1.GetHealthCheckScheduleRequest]) (*connect.Response[v1.GetHealthCheckScheduleResponse], error)
+	// SetHealthCheckSchedule replaces the health-check schedule, overriding the
+	// MIHON_HEALTH_CHECK_* environment variables until it is reset; the job's next run
+	// follows the new interval at once. Leaving `schedule` unset goes back to the
+	// environment's schedule.
+	SetHealthCheckSchedule(context.Context, *connect.Request[v1.SetHealthCheckScheduleRequest]) (*connect.Response[v1.SetHealthCheckScheduleResponse], error)
 	// SetExtensionLanguages sets which of an extension's languages it offers sources in.
 	// Its sources in other languages aren't listed, and calls to them answer NOT_FOUND.
 	// The setting survives updates. Languages must be among the extension's sources'
@@ -138,6 +152,18 @@ func NewMihonAdminServiceClient(httpClient connect.HTTPClient, baseURL string, o
 			connect.WithSchema(mihonAdminServiceMethods.ByName("SetHealthCheck")),
 			connect.WithClientOptions(opts...),
 		),
+		getHealthCheckSchedule: connect.NewClient[v1.GetHealthCheckScheduleRequest, v1.GetHealthCheckScheduleResponse](
+			httpClient,
+			baseURL+MihonAdminServiceGetHealthCheckScheduleProcedure,
+			connect.WithSchema(mihonAdminServiceMethods.ByName("GetHealthCheckSchedule")),
+			connect.WithClientOptions(opts...),
+		),
+		setHealthCheckSchedule: connect.NewClient[v1.SetHealthCheckScheduleRequest, v1.SetHealthCheckScheduleResponse](
+			httpClient,
+			baseURL+MihonAdminServiceSetHealthCheckScheduleProcedure,
+			connect.WithSchema(mihonAdminServiceMethods.ByName("SetHealthCheckSchedule")),
+			connect.WithClientOptions(opts...),
+		),
 		setExtensionLanguages: connect.NewClient[v1.SetExtensionLanguagesRequest, v1.SetExtensionLanguagesResponse](
 			httpClient,
 			baseURL+MihonAdminServiceSetExtensionLanguagesProcedure,
@@ -155,14 +181,16 @@ func NewMihonAdminServiceClient(httpClient connect.HTTPClient, baseURL string, o
 
 // mihonAdminServiceClient implements MihonAdminServiceClient.
 type mihonAdminServiceClient struct {
-	listExtensions        *connect.Client[v1.ListExtensionsRequest, v1.ListExtensionsResponse]
-	getExtension          *connect.Client[v1.GetExtensionRequest, v1.GetExtensionResponse]
-	installExtension      *connect.Client[v1.InstallExtensionRequest, v1.InstallExtensionResponse]
-	uninstallExtension    *connect.Client[v1.UninstallExtensionRequest, v1.UninstallExtensionResponse]
-	checkSources          *connect.Client[v1.CheckSourcesRequest, v1.CheckSourcesResponse]
-	setHealthCheck        *connect.Client[v1.SetHealthCheckRequest, v1.SetHealthCheckResponse]
-	setExtensionLanguages *connect.Client[v1.SetExtensionLanguagesRequest, v1.SetExtensionLanguagesResponse]
-	reloadExtension       *connect.Client[v1.ReloadExtensionRequest, v1.ReloadExtensionResponse]
+	listExtensions         *connect.Client[v1.ListExtensionsRequest, v1.ListExtensionsResponse]
+	getExtension           *connect.Client[v1.GetExtensionRequest, v1.GetExtensionResponse]
+	installExtension       *connect.Client[v1.InstallExtensionRequest, v1.InstallExtensionResponse]
+	uninstallExtension     *connect.Client[v1.UninstallExtensionRequest, v1.UninstallExtensionResponse]
+	checkSources           *connect.Client[v1.CheckSourcesRequest, v1.CheckSourcesResponse]
+	setHealthCheck         *connect.Client[v1.SetHealthCheckRequest, v1.SetHealthCheckResponse]
+	getHealthCheckSchedule *connect.Client[v1.GetHealthCheckScheduleRequest, v1.GetHealthCheckScheduleResponse]
+	setHealthCheckSchedule *connect.Client[v1.SetHealthCheckScheduleRequest, v1.SetHealthCheckScheduleResponse]
+	setExtensionLanguages  *connect.Client[v1.SetExtensionLanguagesRequest, v1.SetExtensionLanguagesResponse]
+	reloadExtension        *connect.Client[v1.ReloadExtensionRequest, v1.ReloadExtensionResponse]
 }
 
 // ListExtensions calls panelarr.mihon.v1.MihonAdminService.ListExtensions.
@@ -195,6 +223,16 @@ func (c *mihonAdminServiceClient) SetHealthCheck(ctx context.Context, req *conne
 	return c.setHealthCheck.CallUnary(ctx, req)
 }
 
+// GetHealthCheckSchedule calls panelarr.mihon.v1.MihonAdminService.GetHealthCheckSchedule.
+func (c *mihonAdminServiceClient) GetHealthCheckSchedule(ctx context.Context, req *connect.Request[v1.GetHealthCheckScheduleRequest]) (*connect.Response[v1.GetHealthCheckScheduleResponse], error) {
+	return c.getHealthCheckSchedule.CallUnary(ctx, req)
+}
+
+// SetHealthCheckSchedule calls panelarr.mihon.v1.MihonAdminService.SetHealthCheckSchedule.
+func (c *mihonAdminServiceClient) SetHealthCheckSchedule(ctx context.Context, req *connect.Request[v1.SetHealthCheckScheduleRequest]) (*connect.Response[v1.SetHealthCheckScheduleResponse], error) {
+	return c.setHealthCheckSchedule.CallUnary(ctx, req)
+}
+
 // SetExtensionLanguages calls panelarr.mihon.v1.MihonAdminService.SetExtensionLanguages.
 func (c *mihonAdminServiceClient) SetExtensionLanguages(ctx context.Context, req *connect.Request[v1.SetExtensionLanguagesRequest]) (*connect.Response[v1.SetExtensionLanguagesResponse], error) {
 	return c.setExtensionLanguages.CallUnary(ctx, req)
@@ -225,6 +263,14 @@ type MihonAdminServiceHandler interface {
 	// SetHealthCheck turns scheduled health checks on or off for one source. They're on for
 	// every source by default, when the service runs them at all.
 	SetHealthCheck(context.Context, *connect.Request[v1.SetHealthCheckRequest]) (*connect.Response[v1.SetHealthCheckResponse], error)
+	// GetHealthCheckSchedule returns when the `source-health` job checks sources on its
+	// own, and which.
+	GetHealthCheckSchedule(context.Context, *connect.Request[v1.GetHealthCheckScheduleRequest]) (*connect.Response[v1.GetHealthCheckScheduleResponse], error)
+	// SetHealthCheckSchedule replaces the health-check schedule, overriding the
+	// MIHON_HEALTH_CHECK_* environment variables until it is reset; the job's next run
+	// follows the new interval at once. Leaving `schedule` unset goes back to the
+	// environment's schedule.
+	SetHealthCheckSchedule(context.Context, *connect.Request[v1.SetHealthCheckScheduleRequest]) (*connect.Response[v1.SetHealthCheckScheduleResponse], error)
 	// SetExtensionLanguages sets which of an extension's languages it offers sources in.
 	// Its sources in other languages aren't listed, and calls to them answer NOT_FOUND.
 	// The setting survives updates. Languages must be among the extension's sources'
@@ -278,6 +324,18 @@ func NewMihonAdminServiceHandler(svc MihonAdminServiceHandler, opts ...connect.H
 		connect.WithSchema(mihonAdminServiceMethods.ByName("SetHealthCheck")),
 		connect.WithHandlerOptions(opts...),
 	)
+	mihonAdminServiceGetHealthCheckScheduleHandler := connect.NewUnaryHandler(
+		MihonAdminServiceGetHealthCheckScheduleProcedure,
+		svc.GetHealthCheckSchedule,
+		connect.WithSchema(mihonAdminServiceMethods.ByName("GetHealthCheckSchedule")),
+		connect.WithHandlerOptions(opts...),
+	)
+	mihonAdminServiceSetHealthCheckScheduleHandler := connect.NewUnaryHandler(
+		MihonAdminServiceSetHealthCheckScheduleProcedure,
+		svc.SetHealthCheckSchedule,
+		connect.WithSchema(mihonAdminServiceMethods.ByName("SetHealthCheckSchedule")),
+		connect.WithHandlerOptions(opts...),
+	)
 	mihonAdminServiceSetExtensionLanguagesHandler := connect.NewUnaryHandler(
 		MihonAdminServiceSetExtensionLanguagesProcedure,
 		svc.SetExtensionLanguages,
@@ -304,6 +362,10 @@ func NewMihonAdminServiceHandler(svc MihonAdminServiceHandler, opts ...connect.H
 			mihonAdminServiceCheckSourcesHandler.ServeHTTP(w, r)
 		case MihonAdminServiceSetHealthCheckProcedure:
 			mihonAdminServiceSetHealthCheckHandler.ServeHTTP(w, r)
+		case MihonAdminServiceGetHealthCheckScheduleProcedure:
+			mihonAdminServiceGetHealthCheckScheduleHandler.ServeHTTP(w, r)
+		case MihonAdminServiceSetHealthCheckScheduleProcedure:
+			mihonAdminServiceSetHealthCheckScheduleHandler.ServeHTTP(w, r)
 		case MihonAdminServiceSetExtensionLanguagesProcedure:
 			mihonAdminServiceSetExtensionLanguagesHandler.ServeHTTP(w, r)
 		case MihonAdminServiceReloadExtensionProcedure:
@@ -339,6 +401,14 @@ func (UnimplementedMihonAdminServiceHandler) CheckSources(context.Context, *conn
 
 func (UnimplementedMihonAdminServiceHandler) SetHealthCheck(context.Context, *connect.Request[v1.SetHealthCheckRequest]) (*connect.Response[v1.SetHealthCheckResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("panelarr.mihon.v1.MihonAdminService.SetHealthCheck is not implemented"))
+}
+
+func (UnimplementedMihonAdminServiceHandler) GetHealthCheckSchedule(context.Context, *connect.Request[v1.GetHealthCheckScheduleRequest]) (*connect.Response[v1.GetHealthCheckScheduleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("panelarr.mihon.v1.MihonAdminService.GetHealthCheckSchedule is not implemented"))
+}
+
+func (UnimplementedMihonAdminServiceHandler) SetHealthCheckSchedule(context.Context, *connect.Request[v1.SetHealthCheckScheduleRequest]) (*connect.Response[v1.SetHealthCheckScheduleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("panelarr.mihon.v1.MihonAdminService.SetHealthCheckSchedule is not implemented"))
 }
 
 func (UnimplementedMihonAdminServiceHandler) SetExtensionLanguages(context.Context, *connect.Request[v1.SetExtensionLanguagesRequest]) (*connect.Response[v1.SetExtensionLanguagesResponse], error) {

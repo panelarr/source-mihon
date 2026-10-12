@@ -26,6 +26,7 @@ type upstream struct {
 	source     client.Client
 	stores     mihonv1connect.MihonStoresServiceClient
 	extensions mihonv1connect.MihonAdminServiceClient
+	jobs       mihonv1connect.MihonJobsServiceClient
 }
 
 func newUpstream(s Settings) *upstream {
@@ -51,6 +52,7 @@ func newUpstream(s Settings) *upstream {
 		source:     client.Remote(s.URL, client.RemoteOptions{APIKey: s.APIKey, HTTPClient: hc}),
 		stores:     mihonv1connect.NewMihonStoresServiceClient(hc, s.URL, opts...),
 		extensions: mihonv1connect.NewMihonAdminServiceClient(hc, s.URL, opts...),
+		jobs:       mihonv1connect.NewMihonJobsServiceClient(hc, s.URL, opts...),
 	}
 }
 

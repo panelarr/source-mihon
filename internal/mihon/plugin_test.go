@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -120,11 +121,14 @@ func (f *fakeStores) InstallFromStore(_ context.Context, r *connect.Request[miho
 // fakeAdmin is mihon-source's extension API: what's installed.
 type fakeAdmin struct {
 	mihonv1connect.UnimplementedMihonAdminServiceHandler
-	mu         sync.Mutex
-	installed  []*mihonv1.Extension
-	uninstalls []string
-	reloads    []string
-	langs      map[string][]string
+	mu           sync.Mutex
+	installed    []*mihonv1.Extension
+	uninstalls   []string
+	reloads      []string
+	langs        map[string][]string
+	checksOff    map[string]bool
+	schedule     *mihonv1.HealthCheckSchedule
+	scheduleSets int
 }
 
 func (f *fakeAdmin) put(ext *mihonv1.Extension) {
@@ -160,6 +164,37 @@ func (f *fakeAdmin) ReloadExtension(_ context.Context, r *connect.Request[mihonv
 	return nil, connect.NewError(connect.CodeNotFound, errors.New("extension not found"))
 }
 
+func (f *fakeAdmin) SetHealthCheck(_ context.Context, r *connect.Request[mihonv1.SetHealthCheckRequest]) (*connect.Response[mihonv1.SetHealthCheckResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.checksOff == nil {
+		f.checksOff = map[string]bool{}
+	}
+	f.checksOff[r.Msg.GetSourceId()] = !r.Msg.GetEnabled()
+	return connect.NewResponse(&mihonv1.SetHealthCheckResponse{}), nil
+}
+
+func (f *fakeAdmin) GetHealthCheckSchedule(context.Context, *connect.Request[mihonv1.GetHealthCheckScheduleRequest]) (*connect.Response[mihonv1.GetHealthCheckScheduleResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s := f.schedule
+	if s == nil {
+		s = &mihonv1.HealthCheckSchedule{Sample: 10, Source: "ENV"}
+	}
+	return connect.NewResponse(&mihonv1.GetHealthCheckScheduleResponse{Schedule: s}), nil
+}
+
+func (f *fakeAdmin) SetHealthCheckSchedule(_ context.Context, r *connect.Request[mihonv1.SetHealthCheckScheduleRequest]) (*connect.Response[mihonv1.SetHealthCheckScheduleResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.scheduleSets++
+	f.schedule = nil
+	if s := r.Msg.GetSchedule(); s != nil {
+		f.schedule = &mihonv1.HealthCheckSchedule{Interval: s.GetInterval(), Langs: s.GetLangs(), Sample: s.GetSample(), Source: "SetHealthCheckSchedule"}
+	}
+	return connect.NewResponse(&mihonv1.SetHealthCheckScheduleResponse{Schedule: f.schedule}), nil
+}
+
 func (f *fakeAdmin) SetExtensionLanguages(_ context.Context, r *connect.Request[mihonv1.SetExtensionLanguagesRequest]) (*connect.Response[mihonv1.SetExtensionLanguagesResponse], error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -175,6 +210,112 @@ func (f *fakeAdmin) SetExtensionLanguages(_ context.Context, r *connect.Request[
 	return connect.NewResponse(&mihonv1.SetExtensionLanguagesResponse{}), nil
 }
 
+// fakeJobs is mihon-source's jobs API: two jobs, and runs that finish when
+// the test says so.
+type fakeJobs struct {
+	mihonv1connect.UnimplementedMihonJobsServiceHandler
+	mu   sync.Mutex
+	runs []*mihonv1.JobRun
+}
+
+func (f *fakeJobs) job(id string) *mihonv1.Job {
+	j := &mihonv1.Job{Id: id, Name: id, Group: "Sources", Schedule: &mihonv1.Schedule{Source: "ENV"}}
+	if id == "source-health" {
+		j.Params = []*mihonv1.JobParam{{Name: "source_ids", Type: "string_list"}, {Name: "steps", Type: "string_list", Default: "popular"}}
+	}
+	for _, r := range f.runs {
+		if r.GetSummary().GetJobId() == id {
+			j.LastRun = r.GetSummary()
+			if r.GetSummary().GetStatus() == mihonv1.JobRunStatus_JOB_RUN_STATUS_RUNNING {
+				j.Running, j.CurrentRunId = true, r.GetSummary().GetId()
+			}
+		}
+	}
+	return j
+}
+
+func (f *fakeJobs) ListJobs(context.Context, *connect.Request[mihonv1.ListJobsRequest]) (*connect.Response[mihonv1.ListJobsResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return connect.NewResponse(&mihonv1.ListJobsResponse{Jobs: []*mihonv1.Job{f.job("store-refresh"), f.job("source-health")}}), nil
+}
+
+func (f *fakeJobs) GetJob(_ context.Context, r *connect.Request[mihonv1.GetJobRequest]) (*connect.Response[mihonv1.GetJobResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if r.Msg.GetJobId() != "store-refresh" && r.Msg.GetJobId() != "source-health" {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("no such job"))
+	}
+	return connect.NewResponse(&mihonv1.GetJobResponse{Job: f.job(r.Msg.GetJobId())}), nil
+}
+
+func (f *fakeJobs) ListJobRuns(_ context.Context, r *connect.Request[mihonv1.ListJobRunsRequest]) (*connect.Response[mihonv1.ListJobRunsResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if r.Msg.GetJobId() != "store-refresh" && r.Msg.GetJobId() != "source-health" {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("no such job"))
+	}
+	res := &mihonv1.ListJobRunsResponse{}
+	for i := len(f.runs) - 1; i >= 0; i-- {
+		if f.runs[i].GetSummary().GetJobId() == r.Msg.GetJobId() {
+			res.Runs = append(res.Runs, f.runs[i].GetSummary())
+		}
+	}
+	return connect.NewResponse(res), nil
+}
+
+func (f *fakeJobs) find(id string) *mihonv1.JobRun {
+	for _, r := range f.runs {
+		if r.GetSummary().GetId() == id {
+			return r
+		}
+	}
+	return nil
+}
+
+func (f *fakeJobs) GetJobRun(_ context.Context, r *connect.Request[mihonv1.GetJobRunRequest]) (*connect.Response[mihonv1.GetJobRunResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if run := f.find(r.Msg.GetRunId()); run != nil {
+		return connect.NewResponse(&mihonv1.GetJobRunResponse{Run: run}), nil
+	}
+	return nil, connect.NewError(connect.CodeNotFound, errors.New("no such run"))
+}
+
+func (f *fakeJobs) RunJob(_ context.Context, r *connect.Request[mihonv1.RunJobRequest]) (*connect.Response[mihonv1.RunJobResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if r.Msg.GetJobId() != "store-refresh" && r.Msg.GetJobId() != "source-health" {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("no such job"))
+	}
+	if j := f.job(r.Msg.GetJobId()); j.GetRunning() {
+		ce := connect.NewError(connect.CodeAlreadyExists, errors.New("already running"))
+		d, _ := connect.NewErrorDetail(&errdetails.ErrorInfo{Reason: "ALREADY_RUNNING", Domain: "mihon.panelarr", Metadata: map[string]string{"current_run_id": j.GetCurrentRunId()}})
+		ce.AddDetail(d)
+		return nil, ce
+	}
+	run := &mihonv1.JobRun{Params: r.Msg.GetParams(), Summary: &mihonv1.JobRunSummary{
+		Id: fmt.Sprintf("r%d", len(f.runs)+1), JobId: r.Msg.GetJobId(), Status: mihonv1.JobRunStatus_JOB_RUN_STATUS_RUNNING,
+		Trigger: mihonv1.JobTrigger_JOB_TRIGGER_MANUAL, TriggeredBy: "source-mihon",
+	}}
+	f.runs = append(f.runs, run)
+	return connect.NewResponse(&mihonv1.RunJobResponse{Run: run.GetSummary()}), nil
+}
+
+func (f *fakeJobs) CancelJobRun(_ context.Context, r *connect.Request[mihonv1.CancelJobRunRequest]) (*connect.Response[mihonv1.CancelJobRunResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	run := f.find(r.Msg.GetRunId())
+	if run == nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("no such run"))
+	}
+	if run.GetSummary().GetStatus() != mihonv1.JobRunStatus_JOB_RUN_STATUS_RUNNING {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("not running"))
+	}
+	run.Summary.Status = mihonv1.JobRunStatus_JOB_RUN_STATUS_CANCELLED
+	return connect.NewResponse(&mihonv1.CancelJobRunResponse{Run: run.GetSummary()}), nil
+}
+
 // upstream is a fake mihon-source: the source API (the SDK's fake plugin),
 // the store API and the icon route, all behind the key.
 type upstream struct {
@@ -182,6 +323,7 @@ type upstream struct {
 	fake   *plugintest.Fake
 	stores *fakeStores
 	admin  *fakeAdmin
+	jobs   *fakeJobs
 	srv    *httptest.Server
 }
 
@@ -205,6 +347,9 @@ func newUpstream(t *testing.T, p plugin.Plugin) *upstream {
 	mux.Handle(path, requireKey(h))
 	apath, ah := mihonv1connect.NewMihonAdminServiceHandler(admin)
 	mux.Handle(apath, requireKey(ah))
+	jobs := &fakeJobs{}
+	jpath, jh := mihonv1connect.NewMihonJobsServiceHandler(jobs)
+	mux.Handle(jpath, requireKey(jh))
 	mux.Handle("GET /v1/sources/{id}/icon", requireKey(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write([]byte("icon-" + r.PathValue("id")))
@@ -216,7 +361,7 @@ func newUpstream(t *testing.T, p plugin.Plugin) *upstream {
 	srv.Config.Protocols.SetUnencryptedHTTP2(true)
 	srv.Start()
 	t.Cleanup(srv.Close)
-	return &upstream{url: srv.URL, fake: f, stores: stores, admin: admin, srv: srv}
+	return &upstream{url: srv.URL, fake: f, stores: stores, admin: admin, jobs: jobs, srv: srv}
 }
 
 func requireKey(h http.Handler) http.Handler {

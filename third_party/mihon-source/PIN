@@ -1,6 +1,7 @@
-# The mihon-source admin protos for extensions and stores (panelarr.mihon.v1). Don't edit
+# The mihon-source admin protos for extensions, jobs and stores (panelarr.mihon.v1). Don't edit
 # them here: change them in mihon-source, then run `make sync-mihon-protos`.
 repository=https://github.com/panelarr/mihon-source
-commit=17f1f2be7e34b638fe489af36e57af52ec4f69b6
-sha256.extensions.proto=37e4e5dbd27506056e65602886faed9dadb76c4961c38fd8d4e72ad1089c797b
+commit=9e8b3fc756991da8e6f5686d94869117b2ae0ebd
+sha256.extensions.proto=87ed82f988873e7a74a16dda0baa5d07858e2e36801047cc29b207b44046c10c
+sha256.jobs.proto=f72c904415f4277e6b37e16493c39714b11c0d9b02f949e350e2fa87f735426f
 sha256.stores.proto=f7cf2ab30ffecb713a8972fd951c64f72e2ae6bcee6b21e9182f4ac71ea45774

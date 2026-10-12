@@ -1,0 +1,225 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package panelarr.mihon.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "panelarr.mihon.v1";
+
+// MihonJobsService shows the service's background jobs and their past runs, and runs
+// them on request. Needs the `admin` scope.
+//
+// The messages and paths are the same in every Panelarr service that has jobs, so
+// clients can share code. Schedules come from the service's configuration and are
+// read-only here. Runs are kept as history (by default the last 100 per job); a run
+// that was going on when the service stopped is marked failed ("interrupted").
+service MihonJobsService {
+  rpc ListJobs(ListJobsRequest) returns (ListJobsResponse) {
+    option (google.api.http) = {get: "/v1/admin/jobs"};
+  }
+
+  rpc GetJob(GetJobRequest) returns (GetJobResponse) {
+    option (google.api.http) = {get: "/v1/admin/jobs/{job_id}"};
+  }
+
+  // ListJobRuns lists a job's runs, newest first.
+  rpc ListJobRuns(ListJobRunsRequest) returns (ListJobRunsResponse) {
+    option (google.api.http) = {get: "/v1/admin/jobs/{job_id}/runs"};
+  }
+
+  // GetJobRun returns a run with its parameters, notes and, while it runs, progress.
+  rpc GetJobRun(GetJobRunRequest) returns (GetJobRunResponse) {
+    option (google.api.http) = {get: "/v1/admin/job-runs/{run_id}"};
+  }
+
+  // RunJob starts a run now and returns at once. A job runs once at a time: if it is
+  // already running, the call fails with ALREADY_EXISTS (HTTP 409, reason
+  // `ALREADY_RUNNING`) and a JobAlreadyRunning error detail with the running run's ID.
+  rpc RunJob(RunJobRequest) returns (RunJobResponse) {
+    option (google.api.http) = {
+      post: "/v1/admin/jobs/{job_id}:run"
+      body: "*"
+    };
+  }
+
+  // CancelJobRun stops a running run. Fails with FAILED_PRECONDITION when the run
+  // isn't running or its job can't be cancelled.
+  rpc CancelJobRun(CancelJobRunRequest) returns (CancelJobRunResponse) {
+    option (google.api.http) = {
+      post: "/v1/admin/job-runs/{run_id}:cancel"
+      body: "*"
+    };
+  }
+}
+
+message Job {
+  // Stable ID, such as `store-refresh`. Matches `^[a-z0-9][a-z0-9._-]*$`: never a `:`,
+  // which HTTP paths would read as a custom verb (as in `:run`).
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  Schedule schedule = 4;
+  bool running = 5;
+  // The running run, when `running`.
+  string current_run_id = 6;
+  JobRunSummary last_run = 7;
+  // When the next scheduled run starts. Unset when the job only runs on request.
+  google.protobuf.Timestamp next_run_at = 8;
+  bool cancellable = 9;
+  // What RunJob accepts in `params`.
+  repeated JobParam params = 10;
+  // A label to group jobs by, such as "Stores".
+  string group = 11;
+}
+
+// When a job runs on its own. With neither `cron` nor `interval`, it only runs on
+// request.
+message Schedule {
+  oneof kind {
+    string cron = 1;
+    google.protobuf.Duration interval = 2;
+  }
+  bool enabled = 3;
+  // Where the schedule is configured, such as an environment variable.
+  string source = 4;
+}
+
+message JobParam {
+  string name = 1;
+  // `bool`, `int`, `string` or `string_list` (comma-separated in RunJob).
+  string type = 2;
+  string description = 3;
+  bool required = 4;
+  // The value used when the param isn't given, if any.
+  string default = 5;
+  // The allowed values, when there is a fixed set. For a `string_list`, any subset.
+  repeated string choices = 6;
+}
+
+enum JobRunStatus {
+  JOB_RUN_STATUS_UNSPECIFIED = 0;
+  JOB_RUN_STATUS_RUNNING = 1;
+  JOB_RUN_STATUS_SUCCEEDED = 2;
+  JOB_RUN_STATUS_FAILED = 3;
+  JOB_RUN_STATUS_CANCELLED = 4;
+  // The run didn't do its work, e.g. a scheduled run while another run was going on.
+  JOB_RUN_STATUS_SKIPPED = 5;
+}
+
+enum JobTrigger {
+  JOB_TRIGGER_UNSPECIFIED = 0;
+  JOB_TRIGGER_SCHEDULE = 1;
+  JOB_TRIGGER_MANUAL = 2;
+  JOB_TRIGGER_STARTUP = 3;
+  // The service started the run on its own while running, e.g. after a change it
+  // reacts to.
+  JOB_TRIGGER_SYSTEM = 4;
+}
+
+message JobRunSummary {
+  string id = 1;
+  string job_id = 2;
+  JobRunStatus status = 3;
+  JobTrigger trigger = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp finished_at = 6;
+  // One line: the outcome, or the error.
+  string message = 7;
+  // What the run did, such as {"stores": 2, "updates": 5}.
+  map<string, int64> counts = 8;
+  // Who started a manual run: "admin" or the client's name.
+  string triggered_by = 9;
+}
+
+message JobRun {
+  JobRunSummary summary = 1;
+  // The parameters it ran with.
+  map<string, string> params = 2;
+  // Warnings, errors and notable events, oldest first (at most 200).
+  repeated JobRunNote notes = 3;
+  // While running.
+  JobProgress progress = 4;
+}
+
+message JobRunNote {
+  google.protobuf.Timestamp at = 1;
+  // `info`, `warn` or `error`.
+  string level = 2;
+  string message = 3;
+  // What the note is about, such as a store or source ID.
+  string ref = 4;
+}
+
+message JobProgress {
+  string phase = 1;
+  int64 done = 2;
+  int64 total = 3;
+  // What is counted, such as "sources".
+  string unit = 4;
+}
+
+message ListJobsRequest {}
+
+message ListJobsResponse {
+  repeated Job jobs = 1;
+}
+
+message GetJobRequest {
+  string job_id = 1;
+}
+
+message GetJobResponse {
+  Job job = 1;
+}
+
+message ListJobRunsRequest {
+  string job_id = 1;
+  // At most 100; 20 when unset.
+  int32 page_size = 2;
+  // From the previous response's `next_page_token`.
+  string page_token = 3;
+  // Only runs with this status, when set.
+  JobRunStatus status = 4;
+}
+
+message ListJobRunsResponse {
+  repeated JobRunSummary runs = 1;
+  // Empty on the last page.
+  string next_page_token = 2;
+}
+
+message GetJobRunRequest {
+  string run_id = 1;
+}
+
+message GetJobRunResponse {
+  JobRun run = 1;
+}
+
+message RunJobRequest {
+  string job_id = 1;
+  // Values for the job's params; lists are comma-separated.
+  map<string, string> params = 2;
+}
+
+message RunJobResponse {
+  JobRunSummary run = 1;
+}
+
+// Error detail of RunJob's ALREADY_EXISTS.
+message JobAlreadyRunning {
+  string current_run_id = 1;
+}
+
+message CancelJobRunRequest {
+  string run_id = 1;
+}
+
+message CancelJobRunResponse {
+  JobRunSummary run = 1;
+}

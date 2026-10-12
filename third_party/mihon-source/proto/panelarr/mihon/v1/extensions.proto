@@ -58,6 +58,23 @@ service MihonAdminService {
     };
   }
 
+  // GetHealthCheckSchedule returns when the `source-health` job checks sources on its
+  // own, and which.
+  rpc GetHealthCheckSchedule(GetHealthCheckScheduleRequest) returns (GetHealthCheckScheduleResponse) {
+    option (google.api.http) = {get: "/v1/admin/health-checks/schedule"};
+  }
+
+  // SetHealthCheckSchedule replaces the health-check schedule, overriding the
+  // MIHON_HEALTH_CHECK_* environment variables until it is reset; the job's next run
+  // follows the new interval at once. Leaving `schedule` unset goes back to the
+  // environment's schedule.
+  rpc SetHealthCheckSchedule(SetHealthCheckScheduleRequest) returns (SetHealthCheckScheduleResponse) {
+    option (google.api.http) = {
+      put: "/v1/admin/health-checks/schedule"
+      body: "*"
+    };
+  }
+
   // SetExtensionLanguages sets which of an extension's languages it offers sources in.
   // Its sources in other languages aren't listed, and calls to them answer NOT_FOUND.
   // The setting survives updates. Languages must be among the extension's sources'
@@ -236,6 +253,34 @@ message StepResult {
   google.protobuf.Duration duration = 6;
   // What the step found, e.g. "20 series" or "image/webp, 350 KB".
   string detail = 7;
+}
+
+// When the `source-health` job checks sources on its own, and which.
+message HealthCheckSchedule {
+  // How often. Unset means no scheduled checks; at least a minute otherwise.
+  google.protobuf.Duration interval = 1;
+  // Source languages the checks cover. Empty means all.
+  repeated string langs = 2;
+  // Sources per round, the least recently checked first. 0 means all.
+  uint32 sample = 3;
+  // Where the schedule comes from: "SetHealthCheckSchedule" once set over the API, or
+  // the environment variables. Ignored in SetHealthCheckSchedule.
+  string source = 4;
+}
+
+message GetHealthCheckScheduleRequest {}
+
+message GetHealthCheckScheduleResponse {
+  HealthCheckSchedule schedule = 1;
+}
+
+message SetHealthCheckScheduleRequest {
+  // The new schedule; unset goes back to the environment's.
+  HealthCheckSchedule schedule = 1;
+}
+
+message SetHealthCheckScheduleResponse {
+  HealthCheckSchedule schedule = 1;
 }
 
 message SetHealthCheckRequest {
