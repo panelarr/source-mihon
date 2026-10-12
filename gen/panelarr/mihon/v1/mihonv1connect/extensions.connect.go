@@ -53,6 +53,9 @@ const (
 	// MihonAdminServiceSetHealthCheckProcedure is the fully-qualified name of the MihonAdminService's
 	// SetHealthCheck RPC.
 	MihonAdminServiceSetHealthCheckProcedure = "/panelarr.mihon.v1.MihonAdminService/SetHealthCheck"
+	// MihonAdminServiceSetExtensionLanguagesProcedure is the fully-qualified name of the
+	// MihonAdminService's SetExtensionLanguages RPC.
+	MihonAdminServiceSetExtensionLanguagesProcedure = "/panelarr.mihon.v1.MihonAdminService/SetExtensionLanguages"
 	// MihonAdminServiceReloadExtensionProcedure is the fully-qualified name of the MihonAdminService's
 	// ReloadExtension RPC.
 	MihonAdminServiceReloadExtensionProcedure = "/panelarr.mihon.v1.MihonAdminService/ReloadExtension"
@@ -78,6 +81,12 @@ type MihonAdminServiceClient interface {
 	// SetHealthCheck turns scheduled health checks on or off for one source. They're on for
 	// every source by default, when the service runs them at all.
 	SetHealthCheck(context.Context, *connect.Request[v1.SetHealthCheckRequest]) (*connect.Response[v1.SetHealthCheckResponse], error)
+	// SetExtensionLanguages sets which of an extension's languages it offers sources in.
+	// Its sources in other languages aren't listed, and calls to them answer NOT_FOUND.
+	// The setting survives updates. Languages must be among the extension's sources'
+	// languages; none means all of them. "all" and "multi" are languages like any other:
+	// list them to keep multi-language sources.
+	SetExtensionLanguages(context.Context, *connect.Request[v1.SetExtensionLanguagesRequest]) (*connect.Response[v1.SetExtensionLanguagesResponse], error)
 	// ReloadExtension unloads an extension and loads it again from its installed file.
 	ReloadExtension(context.Context, *connect.Request[v1.ReloadExtensionRequest]) (*connect.Response[v1.ReloadExtensionResponse], error)
 }
@@ -129,6 +138,12 @@ func NewMihonAdminServiceClient(httpClient connect.HTTPClient, baseURL string, o
 			connect.WithSchema(mihonAdminServiceMethods.ByName("SetHealthCheck")),
 			connect.WithClientOptions(opts...),
 		),
+		setExtensionLanguages: connect.NewClient[v1.SetExtensionLanguagesRequest, v1.SetExtensionLanguagesResponse](
+			httpClient,
+			baseURL+MihonAdminServiceSetExtensionLanguagesProcedure,
+			connect.WithSchema(mihonAdminServiceMethods.ByName("SetExtensionLanguages")),
+			connect.WithClientOptions(opts...),
+		),
 		reloadExtension: connect.NewClient[v1.ReloadExtensionRequest, v1.ReloadExtensionResponse](
 			httpClient,
 			baseURL+MihonAdminServiceReloadExtensionProcedure,
@@ -140,13 +155,14 @@ func NewMihonAdminServiceClient(httpClient connect.HTTPClient, baseURL string, o
 
 // mihonAdminServiceClient implements MihonAdminServiceClient.
 type mihonAdminServiceClient struct {
-	listExtensions     *connect.Client[v1.ListExtensionsRequest, v1.ListExtensionsResponse]
-	getExtension       *connect.Client[v1.GetExtensionRequest, v1.GetExtensionResponse]
-	installExtension   *connect.Client[v1.InstallExtensionRequest, v1.InstallExtensionResponse]
-	uninstallExtension *connect.Client[v1.UninstallExtensionRequest, v1.UninstallExtensionResponse]
-	checkSources       *connect.Client[v1.CheckSourcesRequest, v1.CheckSourcesResponse]
-	setHealthCheck     *connect.Client[v1.SetHealthCheckRequest, v1.SetHealthCheckResponse]
-	reloadExtension    *connect.Client[v1.ReloadExtensionRequest, v1.ReloadExtensionResponse]
+	listExtensions        *connect.Client[v1.ListExtensionsRequest, v1.ListExtensionsResponse]
+	getExtension          *connect.Client[v1.GetExtensionRequest, v1.GetExtensionResponse]
+	installExtension      *connect.Client[v1.InstallExtensionRequest, v1.InstallExtensionResponse]
+	uninstallExtension    *connect.Client[v1.UninstallExtensionRequest, v1.UninstallExtensionResponse]
+	checkSources          *connect.Client[v1.CheckSourcesRequest, v1.CheckSourcesResponse]
+	setHealthCheck        *connect.Client[v1.SetHealthCheckRequest, v1.SetHealthCheckResponse]
+	setExtensionLanguages *connect.Client[v1.SetExtensionLanguagesRequest, v1.SetExtensionLanguagesResponse]
+	reloadExtension       *connect.Client[v1.ReloadExtensionRequest, v1.ReloadExtensionResponse]
 }
 
 // ListExtensions calls panelarr.mihon.v1.MihonAdminService.ListExtensions.
@@ -179,6 +195,11 @@ func (c *mihonAdminServiceClient) SetHealthCheck(ctx context.Context, req *conne
 	return c.setHealthCheck.CallUnary(ctx, req)
 }
 
+// SetExtensionLanguages calls panelarr.mihon.v1.MihonAdminService.SetExtensionLanguages.
+func (c *mihonAdminServiceClient) SetExtensionLanguages(ctx context.Context, req *connect.Request[v1.SetExtensionLanguagesRequest]) (*connect.Response[v1.SetExtensionLanguagesResponse], error) {
+	return c.setExtensionLanguages.CallUnary(ctx, req)
+}
+
 // ReloadExtension calls panelarr.mihon.v1.MihonAdminService.ReloadExtension.
 func (c *mihonAdminServiceClient) ReloadExtension(ctx context.Context, req *connect.Request[v1.ReloadExtensionRequest]) (*connect.Response[v1.ReloadExtensionResponse], error) {
 	return c.reloadExtension.CallUnary(ctx, req)
@@ -204,6 +225,12 @@ type MihonAdminServiceHandler interface {
 	// SetHealthCheck turns scheduled health checks on or off for one source. They're on for
 	// every source by default, when the service runs them at all.
 	SetHealthCheck(context.Context, *connect.Request[v1.SetHealthCheckRequest]) (*connect.Response[v1.SetHealthCheckResponse], error)
+	// SetExtensionLanguages sets which of an extension's languages it offers sources in.
+	// Its sources in other languages aren't listed, and calls to them answer NOT_FOUND.
+	// The setting survives updates. Languages must be among the extension's sources'
+	// languages; none means all of them. "all" and "multi" are languages like any other:
+	// list them to keep multi-language sources.
+	SetExtensionLanguages(context.Context, *connect.Request[v1.SetExtensionLanguagesRequest]) (*connect.Response[v1.SetExtensionLanguagesResponse], error)
 	// ReloadExtension unloads an extension and loads it again from its installed file.
 	ReloadExtension(context.Context, *connect.Request[v1.ReloadExtensionRequest]) (*connect.Response[v1.ReloadExtensionResponse], error)
 }
@@ -251,6 +278,12 @@ func NewMihonAdminServiceHandler(svc MihonAdminServiceHandler, opts ...connect.H
 		connect.WithSchema(mihonAdminServiceMethods.ByName("SetHealthCheck")),
 		connect.WithHandlerOptions(opts...),
 	)
+	mihonAdminServiceSetExtensionLanguagesHandler := connect.NewUnaryHandler(
+		MihonAdminServiceSetExtensionLanguagesProcedure,
+		svc.SetExtensionLanguages,
+		connect.WithSchema(mihonAdminServiceMethods.ByName("SetExtensionLanguages")),
+		connect.WithHandlerOptions(opts...),
+	)
 	mihonAdminServiceReloadExtensionHandler := connect.NewUnaryHandler(
 		MihonAdminServiceReloadExtensionProcedure,
 		svc.ReloadExtension,
@@ -271,6 +304,8 @@ func NewMihonAdminServiceHandler(svc MihonAdminServiceHandler, opts ...connect.H
 			mihonAdminServiceCheckSourcesHandler.ServeHTTP(w, r)
 		case MihonAdminServiceSetHealthCheckProcedure:
 			mihonAdminServiceSetHealthCheckHandler.ServeHTTP(w, r)
+		case MihonAdminServiceSetExtensionLanguagesProcedure:
+			mihonAdminServiceSetExtensionLanguagesHandler.ServeHTTP(w, r)
 		case MihonAdminServiceReloadExtensionProcedure:
 			mihonAdminServiceReloadExtensionHandler.ServeHTTP(w, r)
 		default:
@@ -304,6 +339,10 @@ func (UnimplementedMihonAdminServiceHandler) CheckSources(context.Context, *conn
 
 func (UnimplementedMihonAdminServiceHandler) SetHealthCheck(context.Context, *connect.Request[v1.SetHealthCheckRequest]) (*connect.Response[v1.SetHealthCheckResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("panelarr.mihon.v1.MihonAdminService.SetHealthCheck is not implemented"))
+}
+
+func (UnimplementedMihonAdminServiceHandler) SetExtensionLanguages(context.Context, *connect.Request[v1.SetExtensionLanguagesRequest]) (*connect.Response[v1.SetExtensionLanguagesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("panelarr.mihon.v1.MihonAdminService.SetExtensionLanguages is not implemented"))
 }
 
 func (UnimplementedMihonAdminServiceHandler) ReloadExtension(context.Context, *connect.Request[v1.ReloadExtensionRequest]) (*connect.Response[v1.ReloadExtensionResponse], error) {

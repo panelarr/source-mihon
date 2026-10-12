@@ -5,6 +5,7 @@ package mihon
 import (
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/panelarr/source-api/sdk/settings"
@@ -31,6 +32,13 @@ const configSchema = `{
       "title": "mihon-source API key",
       "description": "A mihon-source client key with the sources:read and sources:write scopes, plus admin to manage stores and extensions (or mihon-source's admin token). Kept secret: it is never shown again.",
       "writeOnly": true
+    },
+    "languages": {
+      "type": "array",
+      "title": "Languages",
+      "description": "Languages to offer sources in, e.g. en, fr. Empty offers every language. \"all\" and \"multi\" are languages too: list them to keep multi-language sources. Each extension can narrow this further.",
+      "items": {"type": "string", "title": "Language", "description": "A language tag as sources use it, e.g. en, pt-BR, all."},
+      "default": []
     },
     "stores": {
       "type": "array",
@@ -63,8 +71,10 @@ const configSchema = `{
 
 // Settings is the configuration in effect.
 type Settings struct {
-	URL        string
-	APIKey     string
+	URL    string
+	APIKey string
+	// Langs are the languages to offer sources in; empty means all.
+	Langs      []string
 	Stores     []StoreSetting
 	Extensions []string
 }
@@ -95,6 +105,12 @@ func parseSettings(v map[string]any) (Settings, error) {
 		m, _ := raw.(map[string]any)
 		s.Stores = append(s.Stores, StoreSetting{URL: strings.TrimSpace(str(m["url"])), Fingerprint: strings.TrimSpace(str(m["signing_key_fingerprint"]))})
 	}
+	langs, _ := v["languages"].([]any)
+	for _, raw := range langs {
+		if l := strings.TrimSpace(str(raw)); l != "" && !slices.Contains(s.Langs, l) {
+			s.Langs = append(s.Langs, l)
+		}
+	}
 	exts, _ := v["extensions"].([]any)
 	for _, raw := range exts {
 		if pkg := strings.TrimSpace(str(raw)); pkg != "" {
@@ -107,4 +123,9 @@ func parseSettings(v map[string]any) (Settings, error) {
 func str(v any) string {
 	s, _ := v.(string)
 	return s
+}
+
+// offers says whether a source language is among the plugin's languages.
+func (s *Settings) offers(lang string) bool {
+	return s == nil || len(s.Langs) == 0 || slices.Contains(s.Langs, lang)
 }

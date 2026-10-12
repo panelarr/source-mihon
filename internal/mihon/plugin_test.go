@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -35,12 +36,14 @@ const key = "msk_test-key"
 // what it offers.
 type fakeStores struct {
 	mihonv1connect.UnimplementedMihonStoresServiceHandler
-	mu        sync.Mutex
-	stores    []*mihonv1.Store
-	available []*mihonv1.AvailableExtension
-	added     []string
-	installs  []string
-	addErr    error
+	mu         sync.Mutex
+	stores     []*mihonv1.Store
+	available  []*mihonv1.AvailableExtension
+	added      []string
+	installs   []string
+	addErr     error
+	installErr error
+	admin      *fakeAdmin
 }
 
 func (f *fakeStores) ListStores(context.Context, *connect.Request[mihonv1.ListStoresRequest]) (*connect.Response[mihonv1.ListStoresResponse], error) {
@@ -70,13 +73,75 @@ func (f *fakeStores) ListAvailable(context.Context, *connect.Request[mihonv1.Lis
 func (f *fakeStores) InstallFromStore(_ context.Context, r *connect.Request[mihonv1.InstallFromStoreRequest]) (*connect.Response[mihonv1.InstallFromStoreResponse], error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.installErr != nil {
+		return nil, f.installErr
+	}
 	f.installs = append(f.installs, r.Msg.GetStoreId()+"/"+r.Msg.GetPkgName())
+	var offer *mihonv1.AvailableExtension
 	for _, e := range f.available {
 		if e.GetPkgName() == r.Msg.GetPkgName() {
 			e.Installed = true
+			if e.GetStoreId() == r.Msg.GetStoreId() {
+				offer = e
+			}
 		}
 	}
-	return connect.NewResponse(&mihonv1.InstallFromStoreResponse{Extension: &mihonv1.Extension{PkgName: r.Msg.GetPkgName(), VersionName: "1.0"}}), nil
+	ext := &mihonv1.Extension{PkgName: r.Msg.GetPkgName(), VersionName: "1.0"}
+	if offer != nil {
+		ext = &mihonv1.Extension{PkgName: offer.GetPkgName(), Name: offer.GetName(), VersionName: offer.GetVersionName(), VersionCode: offer.GetVersionCode()}
+		for _, s := range offer.GetSources() {
+			ext.Sources = append(ext.Sources, &mihonv1.ExtensionSource{Id: s.GetId(), Name: s.GetName(), Lang: s.GetLang(), Available: true})
+		}
+	}
+	if f.admin != nil {
+		f.admin.put(ext)
+	}
+	return connect.NewResponse(&mihonv1.InstallFromStoreResponse{Extension: ext}), nil
+}
+
+// fakeAdmin is mihon-source's extension API: what's installed.
+type fakeAdmin struct {
+	mihonv1connect.UnimplementedMihonAdminServiceHandler
+	mu         sync.Mutex
+	installed  []*mihonv1.Extension
+	uninstalls []string
+	langs      map[string][]string
+}
+
+func (f *fakeAdmin) put(ext *mihonv1.Extension) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.installed = slices.DeleteFunc(f.installed, func(e *mihonv1.Extension) bool { return e.GetPkgName() == ext.GetPkgName() })
+	f.installed = append(f.installed, ext)
+}
+
+func (f *fakeAdmin) ListExtensions(context.Context, *connect.Request[mihonv1.ListExtensionsRequest]) (*connect.Response[mihonv1.ListExtensionsResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return connect.NewResponse(&mihonv1.ListExtensionsResponse{Extensions: slices.Clone(f.installed)}), nil
+}
+
+func (f *fakeAdmin) UninstallExtension(_ context.Context, r *connect.Request[mihonv1.UninstallExtensionRequest]) (*connect.Response[mihonv1.UninstallExtensionResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.uninstalls = append(f.uninstalls, r.Msg.GetPkgName())
+	f.installed = slices.DeleteFunc(f.installed, func(e *mihonv1.Extension) bool { return e.GetPkgName() == r.Msg.GetPkgName() })
+	return connect.NewResponse(&mihonv1.UninstallExtensionResponse{}), nil
+}
+
+func (f *fakeAdmin) SetExtensionLanguages(_ context.Context, r *connect.Request[mihonv1.SetExtensionLanguagesRequest]) (*connect.Response[mihonv1.SetExtensionLanguagesResponse], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.langs == nil {
+		f.langs = map[string][]string{}
+	}
+	f.langs[r.Msg.GetPkgName()] = r.Msg.GetEnabledLangs()
+	for _, e := range f.installed {
+		if e.GetPkgName() == r.Msg.GetPkgName() {
+			e.EnabledLangs = r.Msg.GetEnabledLangs()
+		}
+	}
+	return connect.NewResponse(&mihonv1.SetExtensionLanguagesResponse{}), nil
 }
 
 // upstream is a fake mihon-source: the source API (the SDK's fake plugin),
@@ -85,6 +150,7 @@ type upstream struct {
 	url    string
 	fake   *plugintest.Fake
 	stores *fakeStores
+	admin  *fakeAdmin
 	srv    *httptest.Server
 }
 
@@ -94,10 +160,19 @@ func newUpstream(t *testing.T, p plugin.Plugin) *upstream {
 	if f == nil {
 		f = plugintest.New()
 	}
-	stores := &fakeStores{stores: []*mihonv1.Store{{Id: "s0", Url: "https://store.example/repo.json", Name: "Existing"}}}
+	// The fake's two sources come from two installed extensions.
+	admin := &fakeAdmin{installed: []*mihonv1.Extension{
+		{PkgName: "example.comics", Name: "Example Comics", VersionName: "1.0", VersionCode: 10,
+			Sources: []*mihonv1.ExtensionSource{{Id: "1001", Name: "Example Comics", Lang: "en", Available: true}}},
+		{PkgName: "beispiel.comics", Name: "Beispiel Comics", VersionName: "2.0", VersionCode: 20,
+			Sources: []*mihonv1.ExtensionSource{{Id: "2001", Name: "Beispiel Comics", Lang: "de", Available: true}}},
+	}}
+	stores := &fakeStores{stores: []*mihonv1.Store{{Id: "s0", Url: "https://store.example/repo.json", Name: "Existing"}}, admin: admin}
 	mux := http.NewServeMux()
 	path, h := mihonv1connect.NewMihonStoresServiceHandler(stores)
 	mux.Handle(path, requireKey(h))
+	apath, ah := mihonv1connect.NewMihonAdminServiceHandler(admin)
+	mux.Handle(apath, requireKey(ah))
 	mux.Handle("GET /v1/sources/{id}/icon", requireKey(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write([]byte("icon-" + r.PathValue("id")))
@@ -109,7 +184,7 @@ func newUpstream(t *testing.T, p plugin.Plugin) *upstream {
 	srv.Config.Protocols.SetUnencryptedHTTP2(true)
 	srv.Start()
 	t.Cleanup(srv.Close)
-	return &upstream{url: srv.URL, fake: f, stores: stores, srv: srv}
+	return &upstream{url: srv.URL, fake: f, stores: stores, admin: admin, srv: srv}
 }
 
 func requireKey(h http.Handler) http.Handler {

@@ -37,6 +37,7 @@ type Plugin struct {
 	up       atomic.Pointer[upstream]
 	settings atomic.Pointer[Settings]
 	stores   *storeSync
+	cat      catalogue
 }
 
 // Options configure [New].
@@ -140,6 +141,7 @@ func (p *Plugin) GetInfo(context.Context, *sourcev1.GetInfoRequest) (*sourcev1.G
 		Capabilities: []sourcev1.PluginCapability{
 			sourcev1.PluginCapability_PLUGIN_CAPABILITY_NETWORK_PROFILES,
 			sourcev1.PluginCapability_PLUGIN_CAPABILITY_DYNAMIC_SOURCES,
+			sourcev1.PluginCapability_PLUGIN_CAPABILITY_PACKAGES,
 		},
 		// mihon-source also applies each extension's own rate limits and
 		// the profile's. These are what a host should keep to per source.
@@ -190,14 +192,23 @@ func (p *Plugin) Health(ctx context.Context, _ *sourcev1.HealthRequest) (*source
 }
 
 func (p *Plugin) ListSources(ctx context.Context, r *sourcev1.ListSourcesRequest) (*sourcev1.ListSourcesResponse, error) {
-	res, err := pass(ctx, p, "ListSources", r, func(u *upstream, ctx context.Context, r *sourcev1.ListSourcesRequest) (*sourcev1.ListSourcesResponse, error) {
-		return u.source.ListSources(ctx, r)
-	})
+	started := time.Now()
+	u, err := p.upstream()
+	var all []*sourcev1.Source
+	if err == nil {
+		all, err = p.refreshCatalogue(ctx, u, r.GetLang())
+	}
+	p.metrics.call("ListSources", err, time.Since(started))
 	if err != nil {
 		return nil, err
 	}
-	for _, s := range res.GetSources() {
-		p.fixIcon(s)
+	set := p.settings.Load()
+	res := &sourcev1.ListSourcesResponse{}
+	for _, s := range all {
+		if set.offers(s.GetLang()) {
+			p.fixIcon(s)
+			res.Sources = append(res.Sources, s)
+		}
 	}
 	p.metrics.sources(len(res.GetSources()), r.GetLang())
 	return res, nil
@@ -210,7 +221,16 @@ func (p *Plugin) GetSource(ctx context.Context, r *sourcev1.GetSourceRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	p.fixIcon(res.GetSource())
+	src := res.GetSource()
+	if !p.settings.Load().offers(src.GetLang()) {
+		return nil, plugin.ErrNotFound("source %s isn't offered: its language %q isn't among the plugin's languages", src.GetId(), src.GetLang())
+	}
+	if _, pkg, ok := p.cat.lookup(src.GetId()); ok {
+		src.PackageId = pkg
+	} else if u, err := p.upstream(); err == nil {
+		src.PackageId = p.sourcePackages(ctx, u)[src.GetId()]
+	}
+	p.fixIcon(src)
 	return res, nil
 }
 
@@ -224,66 +244,108 @@ func (p *Plugin) fixIcon(s *sourcev1.Source) {
 }
 
 func (p *Plugin) GetFilters(ctx context.Context, r *sourcev1.GetFiltersRequest) (*sourcev1.GetFiltersResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
 	return pass(ctx, p, "GetFilters", r, func(u *upstream, ctx context.Context, r *sourcev1.GetFiltersRequest) (*sourcev1.GetFiltersResponse, error) {
 		return u.source.GetFilters(ctx, r)
 	})
 }
 
 func (p *Plugin) Popular(ctx context.Context, r *sourcev1.PopularRequest) (*sourcev1.PopularResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
 	return pass(ctx, p, "Popular", r, func(u *upstream, ctx context.Context, r *sourcev1.PopularRequest) (*sourcev1.PopularResponse, error) {
 		return u.source.Popular(ctx, r)
 	})
 }
 
 func (p *Plugin) Latest(ctx context.Context, r *sourcev1.LatestRequest) (*sourcev1.LatestResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
 	return pass(ctx, p, "Latest", r, func(u *upstream, ctx context.Context, r *sourcev1.LatestRequest) (*sourcev1.LatestResponse, error) {
 		return u.source.Latest(ctx, r)
 	})
 }
 
 func (p *Plugin) Search(ctx context.Context, r *sourcev1.SearchRequest) (*sourcev1.SearchResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
 	return pass(ctx, p, "Search", r, func(u *upstream, ctx context.Context, r *sourcev1.SearchRequest) (*sourcev1.SearchResponse, error) {
 		return u.source.Search(ctx, r)
 	})
 }
 
 func (p *Plugin) ResolveUrl(ctx context.Context, r *sourcev1.ResolveUrlRequest) (*sourcev1.ResolveUrlResponse, error) { //nolint:revive // named after the RPC
-	return pass(ctx, p, "ResolveUrl", r, func(u *upstream, ctx context.Context, r *sourcev1.ResolveUrlRequest) (*sourcev1.ResolveUrlResponse, error) {
+	if r.GetSourceId() != "" {
+		if err := p.offered(ctx, r.GetSourceId()); err != nil {
+			return nil, err
+		}
+	}
+	res, err := pass(ctx, p, "ResolveUrl", r, func(u *upstream, ctx context.Context, r *sourcev1.ResolveUrlRequest) (*sourcev1.ResolveUrlResponse, error) {
 		return u.source.ResolveUrl(ctx, r)
 	})
+	if err != nil {
+		return nil, err
+	}
+	if err := p.offered(ctx, res.GetSourceId()); err != nil {
+		return nil, plugin.ErrNotFound("no offered source knows %q", r.GetUrl())
+	}
+	return res, nil
 }
 
 func (p *Plugin) GetSeries(ctx context.Context, r *sourcev1.GetSeriesRequest) (*sourcev1.GetSeriesResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
 	return pass(ctx, p, "GetSeries", r, func(u *upstream, ctx context.Context, r *sourcev1.GetSeriesRequest) (*sourcev1.GetSeriesResponse, error) {
 		return u.source.GetSeries(ctx, r)
 	})
 }
 
 func (p *Plugin) ListChapters(ctx context.Context, r *sourcev1.ListChaptersRequest) (*sourcev1.ListChaptersResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
 	return pass(ctx, p, "ListChapters", r, func(u *upstream, ctx context.Context, r *sourcev1.ListChaptersRequest) (*sourcev1.ListChaptersResponse, error) {
 		return u.source.ListChapters(ctx, r)
 	})
 }
 
 func (p *Plugin) ListPages(ctx context.Context, r *sourcev1.ListPagesRequest) (*sourcev1.ListPagesResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
 	return pass(ctx, p, "ListPages", r, func(u *upstream, ctx context.Context, r *sourcev1.ListPagesRequest) (*sourcev1.ListPagesResponse, error) {
 		return u.source.ListPages(ctx, r)
 	})
 }
 
 func (p *Plugin) GetSettingsSchema(ctx context.Context, r *sourcev1.GetSettingsSchemaRequest) (*sourcev1.GetSettingsSchemaResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
 	return pass(ctx, p, "GetSettingsSchema", r, func(u *upstream, ctx context.Context, r *sourcev1.GetSettingsSchemaRequest) (*sourcev1.GetSettingsSchemaResponse, error) {
 		return u.source.GetSettingsSchema(ctx, r)
 	})
 }
 
 func (p *Plugin) GetSettings(ctx context.Context, r *sourcev1.GetSettingsRequest) (*sourcev1.GetSettingsResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
 	return pass(ctx, p, "GetSettings", r, func(u *upstream, ctx context.Context, r *sourcev1.GetSettingsRequest) (*sourcev1.GetSettingsResponse, error) {
 		return u.source.GetSettings(ctx, r)
 	})
 }
 
 func (p *Plugin) SetSettings(ctx context.Context, r *sourcev1.SetSettingsRequest) (*sourcev1.SetSettingsResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
 	return pass(ctx, p, "SetSettings", r, func(u *upstream, ctx context.Context, r *sourcev1.SetSettingsRequest) (*sourcev1.SetSettingsResponse, error) {
 		return u.source.SetSettings(ctx, r)
 	})
@@ -305,6 +367,9 @@ func (p *Plugin) SetNetworkProfile(ctx context.Context, r *sourcev1.SetNetworkPr
 // FetchImage streams the image from mihon-source. The stream is retried
 // only while nothing has been sent yet.
 func (p *Plugin) FetchImage(ctx context.Context, r *sourcev1.FetchImageRequest, send plugin.ImageSendFunc) error {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return err
+	}
 	started := time.Now()
 	err := p.fetchImage(ctx, r, send)
 	p.metrics.call("FetchImage", err, time.Since(started))

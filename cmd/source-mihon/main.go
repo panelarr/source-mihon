@@ -53,6 +53,7 @@ func main() {
 	plugin.Main(p, plugin.WithDefaultListen(":8904"), plugin.WithRoutes(
 		plugin.Route{Pattern: "GET /metrics", Handler: p.Metrics().Handler()},
 		plugin.Route{Pattern: "GET /v1/sources/{sourceId}/icon", Handler: p.IconHandler()},
+		plugin.Route{Pattern: "GET /v1/packages/{packageId}/icon", Handler: p.PackageIconHandler()},
 	))
 }
 

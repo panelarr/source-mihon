@@ -22,6 +22,23 @@ mihon-source's errors pass through with their code, reason (`SOURCE_DOWN`, `RATE
 
 After every configuration change, and every 15 minutes, source-mihon makes sure the configured stores are added to mihon-source (through its store API, which pins each store's signing key) and the configured extensions are installed: from the stores that offer a supported version, preferring a jar, then the newest. It only adds. Stores and extensions added in mihon-source by other means stay, and updates are installed in mihon-source. Problems show in `Health` as degraded, and in the logs, named by what failed: "store <url> couldn't be fetched: …" (mihon-source couldn't download it), "store <url> can't be used: …" (unusable content, or a key that doesn't match), "extension <pkg>: no store offers a supported version". Only when mihon-source itself can't be reached does the message say so.
 
+## Extensions as packages
+
+source-mihon declares the source API's `PACKAGES` capability, so the Panelarr server shows an Extensions list for it:
+
+- **ListPackages / GetPackage** put together, per package name, what the stores offer (each store an offer, with its version) and what mihon-source has installed (version, load error, its sources and their languages, the extension's enabled languages). The update flag is mihon-source's. Icons are served at `/v1/packages/{id}/icon` when standalone.
+- **InstallPackage** installs the best supported offer (a jar first, then the newest) or the store asked for, through mihon-source's store API, which checks the signing key and checksum. The installed version again is a no-op. A cancelled install leaves the previous version or finishes; mihon-source guarantees that.
+- **UpdatePackage** installs the newest supported offer when it's newer; up to date is a no-op. mihon-source refreshes store indexes on its schedule (or its store-refresh job).
+- **UninstallPackage** removes the extension; one that isn't installed is a no-op.
+- **SetPackageSettings** sets the extension's languages in mihon-source.
+- Store problems come back with the source API's reasons: `STORE_FETCH_FAILED` (UNAVAILABLE) and `STORE_INVALID` (FAILED_PRECONDITION).
+
+The declarative `extensions` setting still installs missing extensions for people who configure by file.
+
+## Languages
+
+A source is listed when its language passes both the plugin's `languages` setting and its extension's languages (empty means all at each level). mihon-source hides sources outside an extension's languages; source-mihon applies its own setting on top. Calls to any other source answer NOT_FOUND. Each listed source names its extension as `package_id`.
+
 ## Network profiles
 
 The host owns proxies, solvers and rate limits, and pushes a profile per source with `SetNetworkProfile`. source-mihon forwards it to mihon-source, which applies it to that source's requests and overrides the profile assigned in mihon-source's own admin. Removing the pushed profile restores that.
@@ -33,5 +50,5 @@ The host owns proxies, solvers and rate limits, and pushes a profile per source 
 ## Health and metrics
 
 - `Health`: not serving while mihon-source can't be reached; degraded when mihon-source is (e.g. an extension failed to load) or when keeping stores and extensions failed; serving otherwise. `GET /healthz` answers while the process runs.
-- `GET /metrics` (standalone, with the plugin's key): `source_mihon_calls_total{method,code,reason}`, `source_mihon_call_duration_seconds{method}`, `source_mihon_upstream_up`, `source_mihon_sources`, `source_mihon_store_syncs_total{outcome}`, plus Go runtime and process metrics.
+- `GET /metrics` (standalone, with the plugin's key): `source_mihon_calls_total{method,code,reason}`, `source_mihon_package_ops_total{op,outcome}`, `source_mihon_call_duration_seconds{method}`, `source_mihon_upstream_up`, `source_mihon_sources`, `source_mihon_store_syncs_total{outcome}`, plus Go runtime and process metrics.
 - Logs are JSON on standard error. Keys and credentials are never logged.

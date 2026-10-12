@@ -35,7 +35,7 @@ func TestConfigSchemaKeepsTheWrittenOrder(t *testing.T) {
 	doc := schema().Doc()
 	props := doc["properties"].(map[string]any)
 	order := func(m map[string]any, name string) any { return m[name].(map[string]any)["x-order"] }
-	for i, name := range []string{"mihon_source_url", "api_key", "stores", "extensions"} {
+	for i, name := range []string{"mihon_source_url", "api_key", "languages", "stores", "extensions"} {
 		if got := order(props, name); got != float64(i+1) {
 			t.Errorf("%s: x-order %v, want %d", name, got, i+1)
 		}

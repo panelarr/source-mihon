@@ -58,6 +58,18 @@ service MihonAdminService {
     };
   }
 
+  // SetExtensionLanguages sets which of an extension's languages it offers sources in.
+  // Its sources in other languages aren't listed, and calls to them answer NOT_FOUND.
+  // The setting survives updates. Languages must be among the extension's sources'
+  // languages; none means all of them. "all" and "multi" are languages like any other:
+  // list them to keep multi-language sources.
+  rpc SetExtensionLanguages(SetExtensionLanguagesRequest) returns (SetExtensionLanguagesResponse) {
+    option (google.api.http) = {
+      put: "/v1/admin/extensions/{pkg_name}/languages"
+      body: "*"
+    };
+  }
+
   // ReloadExtension unloads an extension and loads it again from its installed file.
   rpc ReloadExtension(ReloadExtensionRequest) returns (ReloadExtensionResponse) {
     option (google.api.http) = {
@@ -89,6 +101,8 @@ message Extension {
   // Where the extension came from.
   ExtensionOrigin origin = 13;
   google.protobuf.Timestamp installed_at = 14;
+  // Languages the extension offers sources in (SetExtensionLanguages). Empty means all.
+  repeated string enabled_langs = 15;
 }
 
 enum ExtensionFormat {
@@ -116,6 +130,8 @@ message ExtensionSource {
   string id = 1;
   string name = 2;
   string lang = 3;
+  // Its language is enabled, so the source is listed.
+  bool available = 4;
 }
 
 message ExtensionOrigin {
@@ -234,5 +250,15 @@ message ReloadExtensionRequest {
 }
 
 message ReloadExtensionResponse {
+  Extension extension = 1;
+}
+
+message SetExtensionLanguagesRequest {
+  string pkg_name = 1;
+  // Languages to offer sources in; empty means all.
+  repeated string enabled_langs = 2;
+}
+
+message SetExtensionLanguagesResponse {
   Extension extension = 1;
 }

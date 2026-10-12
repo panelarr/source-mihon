@@ -83,10 +83,11 @@ run: build ## Run the plugin standalone on :8904 against MIHON_SOURCE_URL (defau
 	@echo "source-mihon listening on http://localhost:8904"
 	MIHON_SOURCE_URL=$${MIHON_SOURCE_URL:-http://localhost:8902} $(BIN)/source-mihon --listen :8904
 
-e2e: ## End-to-end: real mihon-source (built from MIHON_SOURCE_DIR) with a test extension, through this plugin, under conformance
-	cd $(MIHON_SOURCE_DIR) && ./gradlew --no-watch-fs -q :service:installDist :test-extensions:lib16:jar
+e2e: ## End-to-end: real mihon-source (built from MIHON_SOURCE_DIR) with its test extension and fixture store, through this plugin, under conformance
+	cd $(MIHON_SOURCE_DIR) && ./gradlew --no-watch-fs -q :service:installDist :test-extensions:lib16:jar :service:exportFixtureStore -PfixtureStoreDir=$(abspath $(MIHON_SOURCE_DIR))/service/build/fixture-store
 	SOURCE_MIHON_E2E_MIHON_SOURCE=$(abspath $(MIHON_SOURCE_DIR))/service/build/install/mihon-source/bin/mihon-source \
 	SOURCE_MIHON_E2E_EXTENSION=$$(ls $(abspath $(MIHON_SOURCE_DIR))/test-extensions/lib16/build/libs/lib16-*.jar | head -1) \
+	SOURCE_MIHON_E2E_STORE=$(abspath $(MIHON_SOURCE_DIR))/service/build/fixture-store \
 	$(GO) test -count=1 -v -run TestEndToEnd ./internal/e2e/
 
 docker: ## Build the container image ($(IMAGE)); needs the source-api checkout in SOURCE_API_DIR (default ../source-api)

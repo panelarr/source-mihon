@@ -22,6 +22,7 @@ type Metrics struct {
 	up       prometheus.Gauge
 	nSources prometheus.Gauge
 	syncs    *prometheus.CounterVec
+	pkgOps   *prometheus.CounterVec
 }
 
 // NewMetrics registers the metrics on a registry of their own, with the Go
@@ -50,8 +51,12 @@ func NewMetrics() *Metrics {
 			Name: "source_mihon_store_syncs_total",
 			Help: "Reconciles of the configured stores and extensions, by outcome.",
 		}, []string{"outcome"}),
+		pkgOps: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "source_mihon_package_ops_total",
+			Help: "Package calls (list, install, update, uninstall, languages), by outcome: ok or the status code.",
+		}, []string{"op", "outcome"}),
 	}
-	m.reg.MustRegister(m.calls, m.duration, m.up, m.nSources, m.syncs,
+	m.reg.MustRegister(m.calls, m.duration, m.up, m.nSources, m.syncs, m.pkgOps,
 		collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	return m
 }
@@ -85,6 +90,14 @@ func (m *Metrics) storeSync(ok bool) {
 	} else {
 		m.syncs.WithLabelValues("error").Inc()
 	}
+}
+
+func (m *Metrics) packageOp(op string, err error) {
+	outcome := "ok"
+	if err != nil {
+		outcome = plugin.ErrorCode(err).String()
+	}
+	m.pkgOps.WithLabelValues(op, outcome).Inc()
 }
 
 // Handler serves the metrics in the Prometheus text format.

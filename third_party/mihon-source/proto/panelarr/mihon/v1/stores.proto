@@ -14,6 +14,13 @@ option java_package = "panelarr.mihon.v1";
 // MihonStoresService manages extension stores: indexes of extensions published by a
 // third party. No store is configured by default. Needs the `admin` scope.
 //
+// When a store (or a file it lists) can't be used, AddStore, RefreshStore and
+// InstallFromStore fail with a google.rpc.ErrorInfo (domain `mihon.panelarr`) next to
+// the code: reason `STORE_FETCH_FAILED` (UNAVAILABLE) when a download failed, and
+// `STORE_INVALID` (INVALID_ARGUMENT) when the store's content can't be used or its
+// signing key doesn't match. An UNAVAILABLE without a reason means this service itself
+// couldn't be reached.
+//
 // A store is pinned to the signing key fingerprint it announces when it's added.
 // Every install from the store must be signed with that key, and a refresh that sees
 // a different key fails instead of changing the pin.
