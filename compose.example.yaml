@@ -39,7 +39,8 @@ services:
       - mihon_source_api_key
       - source_mihon_api_key
     depends_on:
-      - mihon-source
+      mihon-source:
+        condition: service_healthy   # mihon-source's image reports healthy once its extensions are loaded
     read_only: true
     cap_drop: [ALL]
     security_opt:
