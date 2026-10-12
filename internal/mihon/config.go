@@ -16,6 +16,8 @@ const DefaultURL = "http://mihon-source:8902"
 // configSchema is the configuration the plugin asks its host for.
 const configSchema = `{
   "type": "object",
+  "title": "Mihon extensions",
+  "description": "Where mihon-source runs, and the extension stores and extensions to keep there.",
   "properties": {
     "mihon_source_url": {
       "type": "string",
@@ -26,8 +28,8 @@ const configSchema = `{
     },
     "api_key": {
       "type": "string",
-      "title": "API key",
-      "description": "A mihon-source client key with the sources:read and sources:write scopes, plus admin to manage stores and extensions (or the admin token).",
+      "title": "mihon-source API key",
+      "description": "A mihon-source client key with the sources:read and sources:write scopes, plus admin to manage stores and extensions (or mihon-source's admin token). Kept secret: it is never shown again.",
       "writeOnly": true
     },
     "stores": {
@@ -36,9 +38,11 @@ const configSchema = `{
       "description": "Stores to add to mihon-source. Stores added there by other means are left alone.",
       "items": {
         "type": "object",
+        "title": "Store",
+        "description": "An extension store to add to mihon-source.",
         "properties": {
-          "url": {"type": "string", "format": "uri", "title": "Store URL", "description": "The store's repo.json (or a legacy index)."},
-          "signing_key_fingerprint": {"type": "string", "title": "Signing key fingerprint", "description": "SHA-256 of the store's signing certificate, to pin it from the start. Optional."}
+          "url": {"type": "string", "format": "uri", "title": "Store URL", "description": "The store's repo.json URL (or the URL of a legacy index)."},
+          "signing_key_fingerprint": {"type": "string", "title": "Signing key fingerprint", "description": "Optional. The SHA-256 of the store's signing certificate, which pins the store's key from the start."}
         },
         "required": ["url"],
         "additionalProperties": false
@@ -48,8 +52,8 @@ const configSchema = `{
     "extensions": {
       "type": "array",
       "title": "Extensions",
-      "description": "Package names of extensions to install from the stores when they are missing. Updates are installed in mihon-source.",
-      "items": {"type": "string"},
+      "description": "Package names of extensions to install from the stores when they're missing. Updates are installed in mihon-source.",
+      "items": {"type": "string", "title": "Extension", "description": "The extension's package name, as the store lists it."},
       "default": []
     }
   },
