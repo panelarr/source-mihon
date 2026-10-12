@@ -55,7 +55,7 @@ Each source's settings (its Mihon preferences) pass through: `GetSettingsSchema`
 
 ## Limits
 
-`GetInfo` asks hosts to keep to 2 parallel requests and 30 requests a minute (burst 5) per source. mihon-source applies each extension's own rate limits and the profile's on top.
+`GetInfo` asks hosts to keep to 2 parallel requests and 30 requests a minute (burst 5) per source for API calls. Page images have their own budget: up to 4 parallel downloads per source and no rate limit, because mihon-source fetches images through each source's own client, which applies the extension's rate limits and a pushed profile's.
 
 ## Health and metrics
 

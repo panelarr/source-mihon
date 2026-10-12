@@ -316,6 +316,9 @@ func TestConfig(t *testing.T) {
 		t.Fatal("the key was replaced by a rejected one")
 	}
 	info, _ := p.GetInfo(ctx, &sourcev1.GetInfoRequest{})
+	if lim := info.GetInfo().GetLimits(); lim.GetImageRateLimit() != nil || lim.GetMaxImageConcurrencyPerSource() != 4 {
+		t.Fatalf("image budget: %v", lim)
+	}
 	if info.GetInfo().GetConfigSchema() == nil || info.GetInfo().GetLimits().GetMaxConcurrencyPerSource() == 0 {
 		t.Fatalf("info: %v", info)
 	}

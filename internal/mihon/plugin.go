@@ -147,8 +147,11 @@ func (p *Plugin) GetInfo(context.Context, *sourcev1.GetInfoRequest) (*sourcev1.G
 		},
 		// mihon-source also applies each extension's own rate limits and
 		// the profile's. These are what a host should keep to per source.
+		// Images go through the same per-source client, so they're paced
+		// there: no image rate limit, only a cap on parallel downloads.
 		Limits: &sourcev1.Limits{
-			MaxConcurrencyPerSource: 2,
+			MaxConcurrencyPerSource:      2,
+			MaxImageConcurrencyPerSource: 4,
 			DefaultRateLimit: &sourcev1.RateLimit{
 				Requests: 30, Period: durationpb.New(time.Minute), Burst: 5,
 				Scope: sourcev1.RateLimitScope_RATE_LIMIT_SCOPE_SOURCE,
