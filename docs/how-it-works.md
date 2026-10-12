@@ -20,7 +20,7 @@ mihon-source's errors pass through with their code, reason (`SOURCE_DOWN`, `RATE
 
 ## Stores and extensions
 
-After every configuration change, and every 15 minutes, source-mihon makes sure the configured stores are added to mihon-source (through its store API, which pins each store's signing key) and the configured extensions are installed: from the stores that offer a supported version, preferring a jar, then the newest. It only adds. Stores and extensions added in mihon-source by other means stay, and updates are installed in mihon-source. Problems (a store whose key doesn't match, an extension no store offers) show in `Health` as degraded, and in the logs.
+After every configuration change, and every 15 minutes, source-mihon makes sure the configured stores are added to mihon-source (through its store API, which pins each store's signing key) and the configured extensions are installed: from the stores that offer a supported version, preferring a jar, then the newest. It only adds. Stores and extensions added in mihon-source by other means stay, and updates are installed in mihon-source. Problems show in `Health` as degraded, and in the logs, named by what failed: "store <url> couldn't be fetched: …" (mihon-source couldn't download it), "store <url> can't be used: …" (unusable content, or a key that doesn't match), "extension <pkg>: no store offers a supported version". Only when mihon-source itself can't be reached does the message say so.
 
 ## Network profiles
 

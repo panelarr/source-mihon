@@ -4,6 +4,7 @@ package mihon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+
+	"github.com/panelarr/source-api/sdk/plugin"
 
 	mihonv1 "github.com/panelarr/source-mihon/gen/panelarr/mihon/v1"
 )
@@ -145,7 +148,7 @@ func (s *storeSync) reconcileWith(ctx context.Context, u *upstream, set *Setting
 			return u.stores.AddStore(ctx, connect.NewRequest(&mihonv1.AddStoreRequest{Url: want.URL, ExpectedSigningKeyFingerprint: want.Fingerprint}))
 		})
 		if err != nil {
-			problems = append(problems, fmt.Sprintf("adding store %s: %v", want.URL, err))
+			problems = append(problems, failure("store "+want.URL, err))
 			continue
 		}
 		s.p.log.Info("store added to mihon-source", "store", added.Msg.GetStore().GetName(), "id", added.Msg.GetStore().GetId())
@@ -174,13 +177,40 @@ func (s *storeSync) reconcileWith(ctx context.Context, u *upstream, set *Setting
 			return u.stores.InstallFromStore(ctx, connect.NewRequest(&mihonv1.InstallFromStoreRequest{StoreId: pick.GetStoreId(), PkgName: pkg}))
 		})
 		if err != nil {
-			problems = append(problems, fmt.Sprintf("installing %s: %v", pkg, err))
+			problems = append(problems, failure("extension "+pkg, err))
 			continue
 		}
 		s.p.log.Info("extension installed in mihon-source", "extension", pkg, "version", installed.Msg.GetExtension().GetVersionName())
 	}
 	return problems
 }
+
+// failure describes a failed store or extension call by what failed: the
+// store (or a file it lists), which mihon-source reports with a reason, or
+// mihon-source itself.
+func failure(what string, err error) string {
+	var pe *plugin.Error
+	msg := err.Error()
+	if errors.As(err, &pe) {
+		msg = pe.Message
+	}
+	var a *answered
+	switch {
+	case plugin.ErrorReason(err) == reasonFetchFailed,
+		// mihon-source versions without reasons: it answered, so the download failed.
+		plugin.ErrorReason(err) == "" && errors.As(err, &a) && plugin.ErrorCode(err) == plugin.CodeUnavailable:
+		return fmt.Sprintf("%s couldn't be fetched: %s", what, msg)
+	case plugin.ErrorReason(err) == reasonInvalid:
+		return fmt.Sprintf("%s can't be used: %s", what, msg)
+	}
+	return fmt.Sprintf("%s: %v", what, err)
+}
+
+// Reasons mihon-source's store calls give (domain mihon.panelarr).
+const (
+	reasonFetchFailed plugin.Reason = "STORE_FETCH_FAILED"
+	reasonInvalid     plugin.Reason = "STORE_INVALID"
+)
 
 // pickOffer prefers a supported jar, then a supported APK, then the newest.
 func pickOffer(offers []*mihonv1.AvailableExtension) *mihonv1.AvailableExtension {

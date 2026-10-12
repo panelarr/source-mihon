@@ -84,9 +84,23 @@ func (b bearer) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.
 // retries is how often a call is retried when mihon-source can't be reached.
 var retryDelays = []time.Duration{200 * time.Millisecond, 800 * time.Millisecond}
 
+// answered is an error mihon-source answered with. It was reachable, so the
+// failure is about the request (e.g. a store it couldn't fetch), not about
+// mihon-source.
+type answered struct{ err *plugin.Error }
+
+func (a *answered) Error() string { return a.err.Error() }
+
+func (a *answered) Unwrap() error { return a.err }
+
 // unreachable reports whether err means mihon-source itself couldn't be
-// reached (as opposed to a source failing behind it, which carries a reason).
+// reached (as opposed to a source failing behind it, which carries a reason,
+// or anything mihon-source answered).
 func unreachable(err error) bool {
+	var a *answered
+	if errors.As(err, &a) {
+		return false
+	}
 	code := plugin.ErrorCode(err)
 	return (code == plugin.CodeUnavailable || code == connect.CodeUnknown) && plugin.ErrorReason(err) == ""
 }
@@ -112,10 +126,16 @@ func (u *upstream) mapError(err error) error {
 // call runs f against mihon-source, retrying while mihon-source can't be
 // reached (every source call is safe to repeat).
 func call[T any](ctx context.Context, u *upstream, f func() (T, error)) (T, error) {
-	// The admin clients return Connect errors; the source client already
-	// returns *plugin.Error.
+	// The admin clients return Connect errors, which tell whether mihon-source
+	// answered; the source client already returns *plugin.Error.
 	try := func() (T, error) {
 		res, err := f()
+		var ce *connect.Error
+		if errors.As(err, &ce) && connect.IsWireError(ce) {
+			if pe, ok := plugin.FromConnectError(err).(*plugin.Error); ok {
+				return res, &answered{err: pe}
+			}
+		}
 		return res, plugin.FromConnectError(err)
 	}
 	res, err := try()

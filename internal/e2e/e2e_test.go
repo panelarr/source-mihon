@@ -279,4 +279,20 @@ func TestEndToEnd(t *testing.T) {
 	if err := c.SetNetworkProfile(ctx, rep.Sources[0].ID, nil); err != nil {
 		t.Errorf("profile removal: %v", err)
 	}
+
+	// A store mihon-source can't fetch is the store's problem, not mihon-source's.
+	missing := web.URL + "/no-store/repo.json"
+	before := time.Now()
+	if err := p.Set(ctx, map[string]any{"mihon_source_url": mihonURL, "api_key": adminToken, "stores": []any{map[string]any{"url": missing}}}); err != nil {
+		t.Fatal(err)
+	}
+	syncCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := p.Synced(syncCtx, before); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.StoreProblem(); !strings.HasPrefix(got, "store "+missing+" couldn't be fetched: ") || strings.Contains(got, "can't be reached") {
+		t.Errorf("store problem: %q", got)
+	}
+	t.Logf("store problem: %s", p.StoreProblem())
 }

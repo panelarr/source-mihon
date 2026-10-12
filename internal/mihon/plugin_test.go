@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	sourcev1 "github.com/panelarr/source-api/gen/panelarr/source/v1"
@@ -39,7 +40,7 @@ type fakeStores struct {
 	available []*mihonv1.AvailableExtension
 	added     []string
 	installs  []string
-	failAdd   bool
+	addErr    error
 }
 
 func (f *fakeStores) ListStores(context.Context, *connect.Request[mihonv1.ListStoresRequest]) (*connect.Response[mihonv1.ListStoresResponse], error) {
@@ -51,8 +52,8 @@ func (f *fakeStores) ListStores(context.Context, *connect.Request[mihonv1.ListSt
 func (f *fakeStores) AddStore(_ context.Context, r *connect.Request[mihonv1.AddStoreRequest]) (*connect.Response[mihonv1.AddStoreResponse], error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.failAdd {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("the signing key doesn't match"))
+	if f.addErr != nil {
+		return nil, f.addErr
 	}
 	st := &mihonv1.Store{Id: "s" + string(rune('0'+len(f.stores))), Url: r.Msg.GetUrl(), Name: "Added"}
 	f.stores = append(f.stores, st)
@@ -336,5 +337,71 @@ func TestIcons(t *testing.T) {
 	res, _ = managed.ListSources(context.Background(), &sourcev1.ListSourcesRequest{})
 	if res.GetSources()[0].GetIconUrl() != "" {
 		t.Fatalf("managed mode kept a relative icon path: %q", res.GetSources()[0].GetIconUrl())
+	}
+}
+
+// storeError is an error as mihon-source's store calls answer it.
+func storeError(code connect.Code, reason, msg string) error {
+	e := connect.NewError(code, errors.New(msg))
+	if reason != "" {
+		if d, err := connect.NewErrorDetail(&errdetails.ErrorInfo{Reason: reason, Domain: "mihon.panelarr"}); err == nil {
+			e.AddDetail(d)
+		}
+	}
+	return e
+}
+
+func TestStoreProblemsNameTheStoreNotMihonSource(t *testing.T) {
+	const store = "https://other.example/repo.json"
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"fetch failed", storeError(connect.CodeUnavailable, "STORE_FETCH_FAILED", "GET "+store+" failed: connection refused"),
+			"store " + store + " couldn't be fetched: GET " + store + " failed: connection refused"},
+		{"older mihon-source without reasons", storeError(connect.CodeUnavailable, "", "GET "+store+" failed with HTTP 404"),
+			"store " + store + " couldn't be fetched: GET " + store + " failed with HTTP 404"},
+		{"invalid store", storeError(connect.CodeInvalidArgument, "STORE_INVALID", "the store announces signing key 'ab', not the expected one"),
+			"store " + store + " can't be used: the store announces signing key 'ab', not the expected one"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			up := newUpstream(t, plugintest.New())
+			up.stores.addErr = c.err
+			before := time.Now()
+			p := newPlugin(t, up, map[string]any{"stores": []any{map[string]any{"url": store}}}, false)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := p.Synced(ctx, before); err != nil {
+				t.Fatal(err)
+			}
+			if got := p.StoreProblem(); got != c.want {
+				t.Fatalf("problem:\n got %q\nwant %q", got, c.want)
+			}
+			h, _ := p.Health(context.Background(), &sourcev1.HealthRequest{})
+			if h.GetStatus() != sourcev1.HealthStatus_HEALTH_STATUS_DEGRADED || strings.Contains(h.GetMessage(), "can't be reached") {
+				t.Fatalf("health: %v", h)
+			}
+			// mihon-source answered at once: no retries as if it were down.
+			if time.Since(before) > time.Second {
+				t.Fatalf("took %s", time.Since(before))
+			}
+		})
+	}
+}
+
+func TestStoreSyncWithMihonSourceDown(t *testing.T) {
+	up := newUpstream(t, plugintest.New())
+	up.srv.Close()
+	before := time.Now()
+	p := newPlugin(t, up, map[string]any{"stores": []any{map[string]any{"url": "https://other.example/repo.json"}}}, false)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := p.Synced(ctx, before); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.StoreProblem(); !strings.HasPrefix(got, "listing stores: ") || !strings.Contains(got, "mihon-source at "+up.url+" can't be reached") {
+		t.Fatalf("problem: %q", got)
 	}
 }
