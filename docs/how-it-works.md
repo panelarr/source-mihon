@@ -41,7 +41,17 @@ A source is listed when its language passes both the plugin's `languages` settin
 
 ## Network profiles
 
-The host owns proxies, solvers and rate limits, and pushes a profile per source with `SetNetworkProfile`. source-mihon forwards it to mihon-source, which applies it to that source's requests and overrides the profile assigned in mihon-source's own admin. Removing the pushed profile restores that.
+The host owns proxies, solvers and rate limits, and pushes a profile per source with `SetNetworkProfile`. source-mihon forwards it to mihon-source, which applies it to that source's requests (proxy, solver, rate limit, user agent, headers, timeouts) and overrides the profile assigned in mihon-source's own admin. Removing the pushed profile restores that. mihon-source keeps pushed profiles across restarts of either service.
+
+`GetNetworkProfile` says which profile a source uses now: `PUSHED`, `PLUGIN` (mihon-source's own assignment or default) or `NONE`, without proxy passwords.
+
+## Restarts
+
+`Health.instance_id` combines source-mihon's own start with mihon-source's, so it changes when either restarts, and a host knows to push its configuration and profiles again.
+
+## Source settings
+
+Each source's settings (its Mihon preferences) pass through: `GetSettingsSchema`, `GetSettings`, `SetSettings`, for sources with the `SETTINGS` capability. The schema keeps the extension's order (`x-order`). Settings the extension shows as passwords are `writeOnly`: they read back empty, and an empty value keeps the stored one.
 
 ## Limits
 

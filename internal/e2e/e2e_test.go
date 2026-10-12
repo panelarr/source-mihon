@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -149,11 +150,18 @@ func freePort(t *testing.T) int {
 // startMihonSource runs the mihon-source distribution until the test ends.
 func startMihonSource(t *testing.T, bin, siteURL string) string {
 	t.Helper()
-	port := freePort(t)
+	url, _ := runMihonSource(t, bin, siteURL, filepath.Join(t.TempDir(), "data"), freePort(t))
+	return url
+}
+
+// runMihonSource runs mihon-source on dataDir and port until stop is called
+// or the test ends, so a test can restart it on the same data.
+func runMihonSource(t *testing.T, bin, siteURL, dataDir string, port int) (string, func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, bin)
 	cmd.Env = append(os.Environ(),
-		"MIHON_DATA_DIR="+filepath.Join(t.TempDir(), "data"),
+		"MIHON_DATA_DIR="+dataDir,
 		"MIHON_HOST=127.0.0.1",
 		"MIHON_PORT="+strconv.Itoa(port),
 		"MIHON_ADMIN_TOKEN="+adminToken,
@@ -167,9 +175,15 @@ func startMihonSource(t *testing.T, bin, siteURL string) string {
 		cancel()
 		t.Fatal(err)
 	}
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			_ = cmd.Wait()
+		})
+	}
 	t.Cleanup(func() {
-		cancel()
-		_ = cmd.Wait()
+		stop()
 		if t.Failed() {
 			t.Logf("mihon-source output:\n%s", logs.String())
 		}
@@ -181,7 +195,7 @@ func startMihonSource(t *testing.T, bin, siteURL string) string {
 		if err == nil {
 			_ = res.Body.Close()
 			if res.StatusCode == http.StatusOK {
-				return url
+				return url, stop
 			}
 		}
 		if time.Now().After(deadline) {
