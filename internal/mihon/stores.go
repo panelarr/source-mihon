@@ -53,6 +53,7 @@ func (s *storeSync) job(every time.Duration) jobs.Job {
 		Every:          every,
 		ScheduleSource: "source-mihon",
 		Cancellable:    true,
+		DisabledReason: s.disabledReason,
 		Run: func(ctx context.Context, run *jobs.Run) error {
 			s.pending.Store(false)
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
@@ -65,6 +66,18 @@ func (s *storeSync) job(every time.Duration) jobs.Job {
 	}
 }
 
+// disabledReason says why there's nothing to keep, or "".
+func (s *storeSync) disabledReason() string {
+	set := s.p.settings.Load()
+	switch {
+	case set == nil || s.p.up.Load() == nil:
+		return "source-mihon isn't configured yet"
+	case len(set.Stores) == 0 && len(set.Extensions) == 0 && set.HealthInterval == "":
+		return "Nothing to keep: no stores, extensions or health-check interval are configured"
+	}
+	return ""
+}
+
 // kick asks for a reconcile now. If one is running, another follows it, so
 // the latest configuration is always applied.
 func (s *storeSync) kick() {
@@ -73,6 +86,14 @@ func (s *storeSync) kick() {
 	}
 	s.pending.Store(true)
 	_, err := s.p.jobs.Trigger(syncJobID, nil)
+	if plugin.ErrorReason(err) == plugin.ReasonJobDisabled {
+		// Nothing to keep: in step by definition, and earlier problems are moot.
+		s.pending.Store(false)
+		s.mu.Lock()
+		s.problems, s.lastRun = nil, time.Now()
+		s.mu.Unlock()
+		return
+	}
 	var pe *plugin.Error
 	if errors.As(err, &pe) && pe.Reason == plugin.ReasonAlreadyRunning {
 		go func() {

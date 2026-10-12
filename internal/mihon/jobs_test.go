@@ -30,7 +30,8 @@ func jobIDs(res *sourcev1.ListJobsResponse) string {
 
 func TestJobsOfThePluginAndOfMihonSource(t *testing.T) {
 	up := newUpstream(t, plugintest.New())
-	p := newPlugin(t, up, nil, false)
+	// Something for plugin.sync to keep, so it can run.
+	p := newPlugin(t, up, map[string]any{"health_checks": map[string]any{"interval": "1d"}}, false)
 	ctx := context.Background()
 
 	list, err := p.ListJobs(ctx, &sourcev1.ListJobsRequest{})
@@ -220,5 +221,33 @@ func TestHealthCheckScheduleFromTheConfiguration(t *testing.T) {
 	st, _ := structpb.NewStruct(map[string]any{"mihon_source_url": up.url, "health_checks": map[string]any{"interval": "5 hours"}})
 	if _, err := p.SetConfig(ctx, &sourcev1.SetConfigRequest{Values: st}); plugin.ErrorCode(err) != plugin.CodeInvalidArgument {
 		t.Fatalf("a bad interval: %v", err)
+	}
+}
+
+func TestSyncJobIsDisabledWithNothingToKeep(t *testing.T) {
+	up := newUpstream(t, plugintest.New())
+	p := newPlugin(t, up, nil, false)
+	ctx := context.Background()
+	job, err := p.GetJob(ctx, &sourcev1.GetJobRequest{JobId: "plugin.sync"})
+	if err != nil || !strings.HasPrefix(job.GetJob().GetDisabledReason(), "Nothing to keep") || job.GetJob().GetNextRunAt() != nil {
+		t.Fatalf("job: %v, %v", job, err)
+	}
+	if _, err := p.RunJob(ctx, &sourcev1.RunJobRequest{JobId: "plugin.sync"}); plugin.ErrorReason(err) != plugin.ReasonJobDisabled {
+		t.Fatalf("run: %v", err)
+	}
+
+	before := time.Now()
+	st, _ := structpb.NewStruct(map[string]any{"mihon_source_url": up.url, "health_checks": map[string]any{"interval": "1d"}})
+	if _, err := p.SetConfig(ctx, &sourcev1.SetConfigRequest{Values: st}); err != nil {
+		t.Fatal(err)
+	}
+	syncCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := p.Synced(syncCtx, before); err != nil {
+		t.Fatal(err)
+	}
+	job, _ = p.GetJob(ctx, &sourcev1.GetJobRequest{JobId: "plugin.sync"})
+	if job.GetJob().GetDisabledReason() != "" || job.GetJob().GetNextRunAt() == nil || job.GetJob().GetLastRun() == nil {
+		t.Fatalf("job once there's something to keep: %v", job.GetJob())
 	}
 }
