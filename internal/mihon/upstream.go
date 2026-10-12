@@ -132,7 +132,8 @@ func call[T any](ctx context.Context, u *upstream, f func() (T, error)) (T, erro
 		res, err := f()
 		var ce *connect.Error
 		if errors.As(err, &ce) && connect.IsWireError(ce) {
-			if pe, ok := plugin.FromConnectError(err).(*plugin.Error); ok {
+			var pe *plugin.Error
+			if errors.As(plugin.FromConnectError(err), &pe) {
 				return res, &answered{err: pe}
 			}
 		}
