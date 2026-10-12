@@ -9,6 +9,8 @@ package mihon
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
@@ -165,7 +167,7 @@ func (p *Plugin) GetInfo(context.Context, *sourcev1.GetInfoRequest) (*sourcev1.G
 func (p *Plugin) Health(ctx context.Context, _ *sourcev1.HealthRequest) (*sourcev1.HealthResponse, error) {
 	u, err := p.upstream()
 	if err != nil {
-		return &sourcev1.HealthResponse{Status: sourcev1.HealthStatus_HEALTH_STATUS_NOT_SERVING, Message: err.Error()}, nil
+		return &sourcev1.HealthResponse{Status: sourcev1.HealthStatus_HEALTH_STATUS_NOT_SERVING, Message: err.Error(), InstanceId: instanceID("")}, nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -173,8 +175,9 @@ func (p *Plugin) Health(ctx context.Context, _ *sourcev1.HealthRequest) (*source
 	if err != nil {
 		p.metrics.upstreamUp(false)
 		return &sourcev1.HealthResponse{
-			Status:  sourcev1.HealthStatus_HEALTH_STATUS_NOT_SERVING,
-			Message: "mihon-source at " + u.url + " can't be reached",
+			InstanceId: instanceID(""),
+			Status:     sourcev1.HealthStatus_HEALTH_STATUS_NOT_SERVING,
+			Message:    "mihon-source at " + u.url + " can't be reached",
 		}, nil
 	}
 	p.metrics.upstreamUp(true)
@@ -188,7 +191,19 @@ func (p *Plugin) Health(ctx context.Context, _ *sourcev1.HealthRequest) (*source
 			status = sourcev1.HealthStatus_HEALTH_STATUS_DEGRADED
 		}
 	}
-	return &sourcev1.HealthResponse{Status: status, Message: strings.Join(messages, "; ")}, nil
+	return &sourcev1.HealthResponse{Status: status, Message: strings.Join(messages, "; "), InstanceId: instanceID(h.GetInstanceId())}, nil
+}
+
+// instanceID combines this process's start with mihon-source's, so it changes
+// when either restarts and a host pushes profiles and settings again.
+// Without mihon-source's (unreachable, or too old to say), it's this
+// process's alone.
+func instanceID(upstream string) string {
+	if upstream == "" {
+		return plugin.InstanceID
+	}
+	sum := sha256.Sum256([]byte(plugin.InstanceID + "/" + upstream))
+	return hex.EncodeToString(sum[:8])
 }
 
 func (p *Plugin) ListSources(ctx context.Context, r *sourcev1.ListSourcesRequest) (*sourcev1.ListSourcesResponse, error) {
@@ -348,6 +363,17 @@ func (p *Plugin) SetSettings(ctx context.Context, r *sourcev1.SetSettingsRequest
 	}
 	return pass(ctx, p, "SetSettings", r, func(u *upstream, ctx context.Context, r *sourcev1.SetSettingsRequest) (*sourcev1.SetSettingsResponse, error) {
 		return u.source.SetSettings(ctx, r)
+	})
+}
+
+// GetNetworkProfile asks mihon-source which profile a source uses: pushed,
+// its own assignment or default, or none.
+func (p *Plugin) GetNetworkProfile(ctx context.Context, r *sourcev1.GetNetworkProfileRequest) (*sourcev1.GetNetworkProfileResponse, error) {
+	if err := p.offered(ctx, r.GetSourceId()); err != nil {
+		return nil, err
+	}
+	return pass(ctx, p, "GetNetworkProfile", r, func(u *upstream, ctx context.Context, r *sourcev1.GetNetworkProfileRequest) (*sourcev1.GetNetworkProfileResponse, error) {
+		return u.source.GetNetworkProfile(ctx, r.GetSourceId())
 	})
 }
 
