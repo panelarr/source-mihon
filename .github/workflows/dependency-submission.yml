@@ -7,7 +7,7 @@ name: Dependency submission
 
 on:
   push:
-    branches: [main, ci/source-mihon-go-dependency-submission]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
