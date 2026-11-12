@@ -414,7 +414,10 @@ type ExtensionSource struct {
 	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Lang  string                 `protobuf:"bytes,3,opt,name=lang,proto3" json:"lang,omitempty"`
 	// Its language is enabled, so the source is listed.
-	Available     bool `protobuf:"varint,4,opt,name=available,proto3" json:"available,omitempty"`
+	Available bool `protobuf:"varint,4,opt,name=available,proto3" json:"available,omitempty"`
+	// IDs the source is known by in other apps, as "<scheme>:<id>": "mihon:<id>".
+	// The same as Source.compat_ids in panelarr.source.v1.
+	CompatIds     []string `protobuf:"bytes,5,rep,name=compat_ids,json=compatIds,proto3" json:"compat_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -475,6 +478,13 @@ func (x *ExtensionSource) GetAvailable() bool {
 		return x.Available
 	}
 	return false
+}
+
+func (x *ExtensionSource) GetCompatIds() []string {
+	if x != nil {
+		return x.CompatIds
+	}
+	return nil
 }
 
 type ExtensionOrigin struct {
@@ -1833,12 +1843,14 @@ const file_panelarr_mihon_v1_extensions_proto_rawDesc = "" +
 	"\x06sha256\x18\f \x01(\tR\x06sha256\x12:\n" +
 	"\x06origin\x18\r \x01(\v2\".panelarr.mihon.v1.ExtensionOriginR\x06origin\x12=\n" +
 	"\finstalled_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\vinstalledAt\x12#\n" +
-	"\renabled_langs\x18\x0f \x03(\tR\fenabledLangs\"g\n" +
+	"\renabled_langs\x18\x0f \x03(\tR\fenabledLangs\"\x86\x01\n" +
 	"\x0fExtensionSource\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
 	"\x04lang\x18\x03 \x01(\tR\x04lang\x12\x1c\n" +
-	"\tavailable\x18\x04 \x01(\bR\tavailable\"d\n" +
+	"\tavailable\x18\x04 \x01(\bR\tavailable\x12\x1d\n" +
+	"\n" +
+	"compat_ids\x18\x05 \x03(\tR\tcompatIds\"d\n" +
 	"\x0fExtensionOrigin\x12\x12\n" +
 	"\x03url\x18\x01 \x01(\tH\x00R\x03url\x12\x18\n" +
 	"\x06upload\x18\x02 \x01(\tH\x00R\x06upload\x12\x1b\n" +

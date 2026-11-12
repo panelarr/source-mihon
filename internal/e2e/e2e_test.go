@@ -99,9 +99,14 @@ func site() *httptest.Server {
 	})
 	mux.HandleFunc("GET /api/search", func(w http.ResponseWriter, r *http.Request) {
 		q := strings.ToLower(r.URL.Query().Get("q"))
+		// Like many sites, a pasted series URL finds that series. The test
+		// extension's own URL resolver fails on series pages on purpose, so
+		// mihon-source resolves them through search.
+		_, key, isURL := strings.Cut(q, "/series/")
+		isURL = isURL && strings.HasPrefix(q, "http")
 		var hits []item
 		for _, it := range items(lang(r)) {
-			if strings.Contains(strings.ToLower(it.Title), q) {
+			if isURL && strings.TrimSuffix(key, "/") == strings.ToLower(it.ID) || !isURL && strings.Contains(strings.ToLower(it.Title), q) {
 				hits = append(hits, it)
 			}
 		}

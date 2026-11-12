@@ -109,7 +109,7 @@ func (f *fakeStores) InstallFromStore(_ context.Context, r *connect.Request[miho
 	if offer != nil {
 		ext = &mihonv1.Extension{PkgName: offer.GetPkgName(), Name: offer.GetName(), VersionName: offer.GetVersionName(), VersionCode: offer.GetVersionCode()}
 		for _, s := range offer.GetSources() {
-			ext.Sources = append(ext.Sources, &mihonv1.ExtensionSource{Id: s.GetId(), Name: s.GetName(), Lang: s.GetLang(), Available: true})
+			ext.Sources = append(ext.Sources, &mihonv1.ExtensionSource{Id: s.GetId(), Name: s.GetName(), Lang: s.GetLang(), Available: true, CompatIds: s.GetCompatIds()})
 		}
 	}
 	if f.admin != nil {
@@ -341,6 +341,17 @@ func newUpstream(t *testing.T, p plugin.Plugin) *upstream {
 		{PkgName: "beispiel.comics", Name: "Beispiel Comics", VersionName: "2.0", VersionCode: 20,
 			Sources: []*mihonv1.ExtensionSource{{Id: "2001", Name: "Beispiel Comics", Lang: "de", Available: true}}},
 	}}
+	// Like mihon-source, an installed extension's sources carry the compat
+	// IDs the sources themselves have.
+	for _, e := range admin.installed {
+		for _, es := range e.GetSources() {
+			for _, s := range f.Sources {
+				if s.Source.GetId() == es.GetId() {
+					es.CompatIds = slices.Clone(s.Source.GetCompatIds())
+				}
+			}
+		}
+	}
 	stores := &fakeStores{stores: []*mihonv1.Store{{Id: "s0", Url: "https://store.example/repo.json", Name: "Existing", ExtensionCount: 3}}, admin: admin}
 	mux := http.NewServeMux()
 	path, h := mihonv1connect.NewMihonStoresServiceHandler(stores)

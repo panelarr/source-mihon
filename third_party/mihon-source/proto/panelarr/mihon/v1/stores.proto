@@ -121,6 +121,9 @@ message AvailableSource {
   string name = 2;
   string lang = 3;
   string home_url = 4;
+  // IDs the source will be known by in other apps, as "<scheme>:<id>": "mihon:<id>".
+  // The same as Source.compat_ids in panelarr.source.v1 once installed.
+  repeated string compat_ids = 5;
 }
 
 message ListStoresRequest {}

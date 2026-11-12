@@ -367,11 +367,14 @@ func (x *AvailableExtension) GetUpdateAvailable() bool {
 }
 
 type AvailableSource struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Lang          string                 `protobuf:"bytes,3,opt,name=lang,proto3" json:"lang,omitempty"`
-	HomeUrl       string                 `protobuf:"bytes,4,opt,name=home_url,json=homeUrl,proto3" json:"home_url,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Id      string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name    string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Lang    string                 `protobuf:"bytes,3,opt,name=lang,proto3" json:"lang,omitempty"`
+	HomeUrl string                 `protobuf:"bytes,4,opt,name=home_url,json=homeUrl,proto3" json:"home_url,omitempty"`
+	// IDs the source will be known by in other apps, as "<scheme>:<id>": "mihon:<id>".
+	// The same as Source.compat_ids in panelarr.source.v1 once installed.
+	CompatIds     []string `protobuf:"bytes,5,rep,name=compat_ids,json=compatIds,proto3" json:"compat_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -432,6 +435,13 @@ func (x *AvailableSource) GetHomeUrl() string {
 		return x.HomeUrl
 	}
 	return ""
+}
+
+func (x *AvailableSource) GetCompatIds() []string {
+	if x != nil {
+		return x.CompatIds
+	}
+	return nil
 }
 
 type ListStoresRequest struct {
@@ -1029,12 +1039,14 @@ const file_panelarr_mihon_v1_stores_proto_rawDesc = "" +
 	"\tinstalled\x18\f \x01(\bR\tinstalled\x124\n" +
 	"\x16installed_version_name\x18\r \x01(\tR\x14installedVersionName\x124\n" +
 	"\x16installed_version_code\x18\x0e \x01(\x03R\x14installedVersionCode\x12)\n" +
-	"\x10update_available\x18\x0f \x01(\bR\x0fupdateAvailable\"d\n" +
+	"\x10update_available\x18\x0f \x01(\bR\x0fupdateAvailable\"\x83\x01\n" +
 	"\x0fAvailableSource\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
 	"\x04lang\x18\x03 \x01(\tR\x04lang\x12\x19\n" +
-	"\bhome_url\x18\x04 \x01(\tR\ahomeUrl\"\x13\n" +
+	"\bhome_url\x18\x04 \x01(\tR\ahomeUrl\x12\x1d\n" +
+	"\n" +
+	"compat_ids\x18\x05 \x03(\tR\tcompatIds\"\x13\n" +
 	"\x11ListStoresRequest\"F\n" +
 	"\x12ListStoresResponse\x120\n" +
 	"\x06stores\x18\x01 \x03(\v2\x18.panelarr.mihon.v1.StoreR\x06stores\"l\n" +

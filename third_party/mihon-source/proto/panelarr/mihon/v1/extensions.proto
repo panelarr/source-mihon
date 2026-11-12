@@ -149,6 +149,9 @@ message ExtensionSource {
   string lang = 3;
   // Its language is enabled, so the source is listed.
   bool available = 4;
+  // IDs the source is known by in other apps, as "<scheme>:<id>": "mihon:<id>".
+  // The same as Source.compat_ids in panelarr.source.v1.
+  repeated string compat_ids = 5;
 }
 
 message ExtensionOrigin {
