@@ -51,6 +51,7 @@ func TestCompatIDsOnPackageSources(t *testing.T) {
 	// offered. The installed one's store offer has none, so its IDs can only
 	// come from the installed extension.
 	up.admin.installed[0].Sources[0].CompatIds = []string{"mihon:1001"}
+	up.admin.installed[1].Sources[0].CompatIds = nil
 	for _, a := range up.stores.available {
 		if a.GetPkgName() != "multi.comics" {
 			continue
