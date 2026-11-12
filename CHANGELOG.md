@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.1](https://github.com/panelarr/source-mihon/compare/v0.1.0...v0.1.1) (2026-11-12)
+
+
+### Features
+
+* pass compat_ids through on sources and package sources ([a7a304b](https://github.com/panelarr/source-mihon/commit/a7a304b187828f5a32ae24ccabc7e66872a4ba48))
+* pass compat_ids through on sources and package sources ([9ab3f8b](https://github.com/panelarr/source-mihon/commit/9ab3f8b7cb4874751fed4b5bddd7a5707bb0bbdb))
+
+
+### Bug Fixes
+
+* **deps:** bump the Go toolchain to go1.27.4 ([00329da](https://github.com/panelarr/source-mihon/commit/00329da9ba83e298ceac24b58c0e4de1e7be473e))
+
 ## 0.1.0 (2026-11-09)
 
 
