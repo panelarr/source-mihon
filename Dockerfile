@@ -9,7 +9,7 @@
 #
 # `make docker` does exactly that.
 
-ARG GO_VERSION=1.27.3
+ARG GO_VERSION=1.27.4
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS build
 ARG TARGETOS TARGETARCH
