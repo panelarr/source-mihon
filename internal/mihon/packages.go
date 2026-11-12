@@ -140,6 +140,7 @@ func (p *Plugin) toProto(w *packageWorld, v *view) *sourcev1.Package {
 			addLang(s.GetLang())
 			out.Sources = append(out.Sources, &sourcev1.PackageSource{
 				Id: s.GetId(), Name: s.GetName(), Lang: s.GetLang(), Available: s.GetAvailable() && set.offers(s.GetLang()),
+				CompatIds: slices.Clone(s.GetCompatIds()),
 			})
 		}
 		if !p.managed {
@@ -151,6 +152,7 @@ func (p *Plugin) toProto(w *packageWorld, v *view) *sourcev1.Package {
 			addLang(s.GetLang())
 			out.Sources = append(out.Sources, &sourcev1.PackageSource{
 				Id: s.GetId(), Name: s.GetName(), Lang: s.GetLang(), Available: set.offers(s.GetLang()),
+				CompatIds: slices.Clone(s.GetCompatIds()),
 			})
 		}
 		if !p.managed && b.GetIconUrl() != "" {

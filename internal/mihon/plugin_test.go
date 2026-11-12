@@ -109,7 +109,7 @@ func (f *fakeStores) InstallFromStore(_ context.Context, r *connect.Request[miho
 	if offer != nil {
 		ext = &mihonv1.Extension{PkgName: offer.GetPkgName(), Name: offer.GetName(), VersionName: offer.GetVersionName(), VersionCode: offer.GetVersionCode()}
 		for _, s := range offer.GetSources() {
-			ext.Sources = append(ext.Sources, &mihonv1.ExtensionSource{Id: s.GetId(), Name: s.GetName(), Lang: s.GetLang(), Available: true})
+			ext.Sources = append(ext.Sources, &mihonv1.ExtensionSource{Id: s.GetId(), Name: s.GetName(), Lang: s.GetLang(), Available: true, CompatIds: s.GetCompatIds()})
 		}
 	}
 	if f.admin != nil {
